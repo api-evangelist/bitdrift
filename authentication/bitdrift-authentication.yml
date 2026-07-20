@@ -1,0 +1,31 @@
+generated: '2026-07-18'
+method: searched
+source: https://docs.bitdrift.io/api-guide/calling-the-api.html
+docs: https://docs.bitdrift.io/api-guide/calling-the-api.html
+summary:
+  types: [apiKey]
+  api_key_in: [header]
+  oauth2_flows: []
+  notes: >-
+    The public API authenticates with an API key sent in the x-bitdrift-api-key header. JWT-
+    authenticated requests against the public API are not supported. The bd CLI additionally offers a
+    browser-based user login (bd auth) for interactive/user-authenticated access; that login flow is
+    a CLI capability, not a public-API auth mode.
+schemes:
+- name: ApiKeyAuth
+  type: apiKey
+  in: header
+  parameter_name: x-bitdrift-api-key
+  description: >-
+    API key minted via `bd key create api` or the AdminService CreateKey method. Sent on every
+    request in the x-bitdrift-api-key header. Keys carry explicit permissions for public-API access.
+  sources: [grpc/src/bitdrift/public/unary/admin/v1/keys.proto]
+key_management:
+  create_cli: bd key create api
+  create_api: AdminService.CreateKey
+  list_api: AdminService.GetKeys
+  revoke_api: AdminService.RevokeKey
+  env_var: BD_API_KEY
+cli_user_login:
+  command: bd auth
+  mechanism: browser-based SaaS login (user-authenticated)
