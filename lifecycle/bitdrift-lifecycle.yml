@@ -1,0 +1,23 @@
+generated: '2026-07-18'
+method: searched
+source: https://docs.bitdrift.io/
+versioning:
+  scheme: package-path
+  current: v1
+  docs: https://docs.bitdrift.io/api-guide/
+deprecation:
+  policy_url: null
+  sunset_header: false
+  notes: >-
+    No formal RFC 8594 Sunset/Deprecation-header policy is documented for the public API. Product
+    deprecations are announced in the dated changelog (e.g. Android Memory Pressure Event Trim Level
+    field deprecation, May 2025) and SDK release notes.
+sla:
+  url: null
+  uptime_target: null
+status_page: https://status.bitdrift.io/
+changelog: https://bitdrift.io/changelog
+sdk_release_notes:
+  android: https://docs.bitdrift.io/sdk/releases-android.html
+  ios: https://docs.bitdrift.io/sdk/releases-ios.html
+deprecated_operations: []

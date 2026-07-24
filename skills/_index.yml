@@ -1,0 +1,32 @@
+generated: '2026-07-18'
+method: searched
+source: https://github.com/bitdriftlabs/bd-skills
+note: >-
+  Provider-published Agent Skills, saved verbatim from github.com/bitdriftlabs/bd-skills (PolyForm
+  Shield License 1.0.0). These drive the bd CLI and the Capture SDK from an agent. Install via
+  `npx skills add bitdriftlabs/bd-skills`, GitHub Copilot, or Claude Code plugin marketplace.
+license: PolyForm Shield License 1.0.0
+install:
+  skills_cli: npx skills add bitdriftlabs/bd-skills
+  copilot: copilot plugin marketplace add bitdriftlabs/bd-skills
+  claude_code: /plugin marketplace add bitdriftlabs/bd-skills
+skills:
+- file: bitdrift-bd-cli.md
+  name: bd-cli
+  description: >-
+    Operate the bitdrift bd CLI against live account data — workflows, dashboards, alerts, saved
+    views, charts, crash triage, session inspection, and admin tasks.
+  api: grpc/src/bitdrift/public
+  operations: [ListWorkflows, CreateWorkflow, ListIssueGroups, GetChartsData, HydrateSession, GetKeys]
+- file: bitdrift-bd-instrumentation.md
+  name: bd-instrumentation
+  description: >-
+    Install and configure the Capture SDK to instrument iOS, Android, or React Native apps, including
+    screen tracking, network monitoring, logs, fields, and spans.
+  api: packages/bitdrift-packages.yml
+  operations: []
+- file: bitdrift-bd-docs.md
+  name: bd-docs
+  description: Search and interpret bitdrift documentation for product behavior, SDK setup, and API/service docs.
+  api: llms/bitdrift-llms.txt
+  operations: []

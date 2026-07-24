@@ -1,0 +1,244 @@
+// api - bitdrift's client/server API definitions
+// Copyright Bitdrift, Inc. All rights reserved.
+//
+// Use of this source code and APIs are governed by a source available license that can be found in
+// the LICENSE file or at:
+// https://polyformproject.org/wp-content/uploads/2020/06/PolyForm-Shield-1.0.0.txt
+syntax = "proto3";
+
+package bitdrift.public.unary.charts.v1;
+
+import "bitdrift/public/shared/workflows/v1/time_series.proto";
+import "validate/validate.proto";
+
+message ChartIdentifier {
+  message WorkflowChart {
+    // The workflow that owns this chart.
+    string workflow_id = 2 [(validate.rules).string = {
+      min_len: 1
+      max_len: 255
+    }];
+
+    // The ID of the rule node within the workflow that holds the
+    // RuleChartConfiguration for this chart.
+    string chart_rule_id = 3 [(validate.rules).string = {
+      min_len: 1
+      max_len: 255
+    }];
+
+    // Optionally narrows the chart to a specific time series within the chart
+    // definition. This is currently required when retrieving example
+    // cardinality for a specific time series.
+    optional string aggregated_action_id = 4 [(validate.rules).string = {max_len: 255}];
+  }
+
+  message WorkflowFunnelChart {
+    // The workflow that owns this funnel chart.
+    string workflow_id = 2 [(validate.rules).string = {
+      min_len: 1
+      max_len: 255
+    }];
+
+    // The funnel rule that defines this chart.
+    string funnel_rule_id = 3 [(validate.rules).string = {
+      min_len: 1
+      max_len: 255
+    }];
+  }
+
+  message WorkflowSessionCaptureChart {
+    // The workflow that owns this session capture chart.
+    string workflow_id = 2 [(validate.rules).string = {
+      min_len: 1
+      max_len: 255
+    }];
+
+    // The flush rule that defines the session capture chart.
+    string flush_rule_id = 3 [(validate.rules).string = {
+      min_len: 1
+      max_len: 255
+    }];
+
+    // The action whose captured sessions should be returned.
+    string action_id = 4 [(validate.rules).string = {
+      min_len: 1
+      max_len: 255
+    }];
+  }
+
+  message WorkflowSankeyChart {
+    // The workflow that owns this sankey chart.
+    string workflow_id = 2 [(validate.rules).string = {
+      min_len: 1
+      max_len: 255
+    }];
+
+    // The rule that defines this sankey chart.
+    string rule_id = 3 [(validate.rules).string = {
+      min_len: 1
+      max_len: 255
+    }];
+  }
+
+  // Active devices are global to an account and are not tied to an action ID. Use request-level
+  // platform filtering to narrow results. This chart returns line-chart data and resolves to a
+  // line chart in dashboard metadata. See the GetActiveDevices API for an explanation of what
+  // constitutes an active device.
+  message ActiveDevicesChart {
+    enum ActiveDevicesChartType {
+      // This is a standard chart using 1m/15m/2h resolutions.
+      NORMAL = 0;
+      // Includes three daily series: DAU for that day, WAU for the trailing 7 days, and MAU for
+      // the trailing 30 days. This chart is returned in a dashboard group with a minimum query
+      // interval of 7 days, so smaller time windows may return no data.
+      LONG_TERM = 1;
+      // Shows stickiness as DAU/MAU, with the same minimum time-window expectations as LONG_TERM.
+      STICKINESS = 2;
+    }
+
+    // The active-devices chart variant to query.
+    .bitdrift.public.unary.charts.v1.ChartIdentifier.ActiveDevicesChart.ActiveDevicesChartType type = 1 [(validate.rules).enum = {defined_only: true}];
+  }
+
+  // Shows issue-stability metrics that are not tied to a specific action ID. Results are filtered
+  // by platform and app ID.
+  message IssueStabilityChart {
+    enum IssueStabilityChartType {
+      // Shows three series on the same chart: Crash-Free Rate = (1 - (# of crashes / # of app
+      // opens)) x 100; Crash-Free Session Rate = (1 - (# of crash sessions / # of sessions)) x
+      // 100; Crash-Free Devices = (1 - (# of crashed devices / # of devices)) x 100.
+      GLOBAL = 0;
+      // Crash-Free Rate grouped by report type.
+      DETAILED_CRASH_FREE_RATE = 1;
+      // Crash-Free Session Rate grouped by report type.
+      DETAILED_CRASH_FREE_SESSION_RATE = 2;
+      // Crash-Free Devices grouped by report type.
+      DETAILED_CRASH_FREE_DEVICES = 3;
+    }
+
+    // The issue-stability chart variant to query.
+    .bitdrift.public.unary.charts.v1.ChartIdentifier.IssueStabilityChart.IssueStabilityChartType type = 1 [(validate.rules).enum = {defined_only: true}];
+  }
+
+  oneof type {
+    option (validate.required) = true;
+    // A workflow-backed metric chart.
+    .bitdrift.public.unary.charts.v1.ChartIdentifier.WorkflowChart workflow = 1;
+
+    // A workflow-backed sankey chart.
+    .bitdrift.public.unary.charts.v1.ChartIdentifier.WorkflowSankeyChart sankey_chart = 5;
+
+    // An active-devices chart as found on the devices tab in Instant Insights.
+    .bitdrift.public.unary.charts.v1.ChartIdentifier.ActiveDevicesChart active_devices_chart = 6;
+
+    // A workflow-backed funnel chart.
+    .bitdrift.public.unary.charts.v1.ChartIdentifier.WorkflowFunnelChart workflow_funnel_chart = 7;
+
+    // A workflow-backed session capture chart.
+    .bitdrift.public.unary.charts.v1.ChartIdentifier.WorkflowSessionCaptureChart workflow_session_capture_chart = 8;
+
+    // An issue-stability chart as found on the stability tab in Instant Insights.
+    .bitdrift.public.unary.charts.v1.ChartIdentifier.IssueStabilityChart issue_stability_chart = 9;
+  }
+}
+
+enum SortOrder {
+  MAX = 0;
+  MIN = 1;
+}
+
+message LimitStrategy {
+  message TopKLimit {
+    // The number of time series to return per chart dimension.
+    uint64 top_k = 1 [(validate.rules).uint64 = {gt: 0}];
+  }
+
+  // Used to select specific time series from a chart instead of relying on a top-K algorithm.
+  //
+  // This specifies the list of dimension values to include in the results. Only time series that match one of the sent
+  // dimension value combinations will be included in the results.
+  message IdentifierMatch {
+    message DimensionIdentifier {
+      // The `TimeSeries.id` of the grouped result to include.
+      //
+      // Use the `id` returned by `GetChartsData` together with the matching `labels`. This value
+      // identifies the backing time-series query and may be shared by multiple grouped results.
+      string id = 1 [(validate.rules).string = {
+        min_len: 1
+        max_len: 255
+      }];
+
+      // The label values for the grouped result.
+      //
+      // These labels must match the selected grouped result exactly and are evaluated together with
+      // `id`. Labels disambiguate grouped results that share the same `TimeSeries.id`.
+      repeated .bitdrift.public.shared.workflows.v1.LabelPair labels = 2 [(validate.rules).repeated = {
+        max_items: 10
+        items: {message: {required: true}}
+      }];
+    }
+
+    // Selects specific grouped results from a chart response.
+    //
+    // Callers send one `DimensionIdentifier` for each grouped result to include. Callers construct
+    // each entry from a `GetChartsData` result by copying the returned `TimeSeries.id` and its
+    // full `labels` set. For a single group-by, `labels` contains one entry. For a multi-group-by,
+    // `labels` must contain one entry per group key in the same order as the chart definition.
+    repeated .bitdrift.public.unary.charts.v1.LimitStrategy.IdentifierMatch.DimensionIdentifier dimension_identifiers = 1 [(validate.rules).repeated = {
+      min_items: 1
+      max_items: 100
+    }];
+
+    // If true, the rest of the dimensions will be returned as "other". This does not currently
+    // work for histograms.
+    bool return_other = 2;
+  }
+
+  oneof limit_strategy {
+    // Select the top K groups per time series based on the aggregated value for the chart metric. This is the most common limit strategy and is used when there are too many groups to display in the chart and we want to show the most important ones.
+    .bitdrift.public.unary.charts.v1.LimitStrategy.TopKLimit top_k_limit = 1;
+
+    // Select specific groups based on their dimension values. This is used to target particular groups that we want to display in the chart regardless of their aggregated value.
+    .bitdrift.public.unary.charts.v1.LimitStrategy.IdentifierMatch identifier_match = 2;
+  }
+
+  // The sort order to use when applying the limit strategy. By default the output returns the top K
+  // of maximum values, but can be switched to return the top K of minimum values (bottom K).
+  .bitdrift.public.unary.charts.v1.SortOrder sort_order = 3 [(validate.rules).enum = {defined_only: true}];
+
+  // Optional exclusions to apply when limiting. This is used to exclude specific dimensions from the top K results
+  .bitdrift.public.unary.charts.v1.LimitStrategy.IdentifierMatch exclusions = 4;
+}
+
+message HistogramConfiguration {
+  // Pins the histograms within this chart to a specific percentile. This is
+  // required for charts that have histograms with a top-K grouping because we
+  // do not support querying the Cartesian product of (values, percentiles)
+  // with top-K.
+  //
+  // This must be set to one of the percentiles in the ChartMetadata for the
+  // chart if percentiles are defined.
+  float percentile = 2 [(validate.rules).float = {
+    gte: 0.0
+    lte: 1.0
+  }];
+
+  // Percentiles to query when the chart supports returning multiple histogram lines.
+  repeated float percentiles = 3 [(validate.rules).repeated = {
+    max_items: 20
+    items: {
+      float: {
+        gte: 0.0
+        lte: 1.0
+      }
+    }
+  }];
+}
+
+message FunnelStep {
+  // The action ID associated with this step.
+  string id = 1;
+
+  // The accumulated value of all collected data points for this metric.
+  uint64 value = 2;
+}

@@ -1,0 +1,75 @@
+// api - bitdrift's client/server API definitions
+// Copyright Bitdrift, Inc. All rights reserved.
+//
+// Use of this source code and APIs are governed by a source available license that can be found in
+// the LICENSE file or at:
+// https://polyformproject.org/wp-content/uploads/2020/06/PolyForm-Shield-1.0.0.txt
+syntax = "proto3";
+
+package bitdrift.public.unary.admin.v1;
+
+enum Permission {
+  PERMISSION_UNSPECIFIED = 0;
+  // Allows creating, revoking, and listing SDK and API keys.
+  SDK_KEY_ADMIN = 1;
+  // Allows creating API keys.
+  API_KEY_CREATOR = 16;
+  // Allows editing any workflow.
+  WORKFLOW_ADMIN = 2;
+  // Allows reading any workflow.
+  WORKFLOW_READ = 3;
+  // Allows creating, editing, and deleting workflows that the user owns.
+  WORKFLOW_WRITE = 4;
+  // Allows deploying owned workflows.
+  WORKFLOW_DEPLOY = 5;
+  // Allows reading session/timeline data.
+  SESSION_READ = 7;
+  // Allows reading metrics data.
+  METRIC_READ = 9;
+  // Allows managing issue company settings.
+  ISSUE_ADMIN = 11;
+  // Allows reading user data for issue assignment.
+  ISSUE_ASSIGN = 12;
+  // Allows reading issue report data.
+  ISSUE_READ = 8;
+  // Allows managing connectors.
+  CONNECTOR_ADMIN = 14;
+  // Allows reading connectors.
+  CONNECTOR_READ = 17;
+  // Allows reading debug file metadata.
+  DEBUG_FILE_READ = 15;
+  // Allows reading system status information.
+  SYSTEM_STATUS_READ = 18;
+  // Allows creating, editing, and deleting issue workflows that the user owns.
+  ISSUE_WORKFLOW_WRITE = 19;
+  // Allows creating, editing, and deleting any alert and notification configuration.
+  ALERT_ADMIN = 20;
+  // Allows reading alert and notification configuration.
+  ALERT_READ = 21;
+  // Allows creating, editing, and deleting alert and notification configuration that the user owns.
+  ALERT_WRITE = 22;
+  // Allows reading notification groups.
+  NOTIFICATION_GROUP_READ = 23;
+  // Allows creating, editing, and deleting notification groups.
+  NOTIFICATION_GROUP_ADMIN = 24;
+  // Allows reading issue and workflow views.
+  VIEW_READ = 25;
+  // Allows creating, editing, and deleting issue and workflow views.
+  VIEW_WRITE = 26;
+  // Allows managing teams.
+  TEAMS_ADMIN = 27;
+  // Allows managing owned teams.
+  TEAMS_WRITE = 28;
+  // Allows reading teams.
+  TEAMS_READ = 29;
+  // Allows reading entity information and entity recording requests.
+  ENTITY_READ = 30;
+  // Allows creating, editing, and deleting known entities and entity recording requests.
+  ENTITY_WRITE = 31;
+  // Allows managing dashboards.
+  DASHBOARDS_ADMIN = 32;
+  // Allows managing owned dashboards, or dashboards that the user has been granted edit access to.
+  DASHBOARDS_WRITE = 33;
+  // Allows reading dashboards.
+  DASHBOARDS_READ = 34;
+}

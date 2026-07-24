@@ -1,0 +1,60 @@
+// api - bitdrift's client/server API definitions
+// Copyright Bitdrift, Inc. All rights reserved.
+//
+// Use of this source code and APIs are governed by a source available license that can be found in
+// the LICENSE file or at:
+// https://polyformproject.org/wp-content/uploads/2020/06/PolyForm-Shield-1.0.0.txt
+syntax = "proto3";
+
+package bitdrift.public.shared.platform.v1;
+
+import "validate/validate.proto";
+
+// Represents platforms that workflows and dashboards can target or filter by.
+//
+// Use this message to select platforms for workflow configuration or to filter
+// requests such as listing workflows. App version information provides
+// additional filtering within each platform.
+message Platform {
+  message AppVersions {
+    // The app ID.
+    string app_id = 1 [(validate.rules).string = {max_len: 255}];
+
+    // The known app versions for a given app ID.
+    repeated string app_versions = 2 [(validate.rules).repeated = {max_items: 100}];
+  }
+
+  // Represents app selection criteria within a platform filter.
+  // Each platform filter can optionally narrow results by app information.
+  message App {
+    // App selection criteria. Specify either an app ID alone or an app ID with
+    // associated app versions.
+    oneof value {
+      option (validate.required) = true;
+      // Filters by app ID only.
+      string app_id = 1 [(validate.rules).string = {max_len: 255}];
+
+      // Filters by app ID and app versions.
+      .bitdrift.public.shared.platform.v1.Platform.AppVersions app_versions = 2;
+    }
+  }
+
+  message Apple {
+    // App selection criteria for Apple platforms.
+    repeated .bitdrift.public.shared.platform.v1.Platform.App apps = 1 [(validate.rules).repeated = {max_items: 100}];
+  }
+
+  message Android {
+    // App selection criteria for Android platforms.
+    repeated .bitdrift.public.shared.platform.v1.Platform.App apps = 1 [(validate.rules).repeated = {max_items: 100}];
+  }
+
+  oneof type {
+    option (validate.required) = true;
+    // Targets Apple platforms.
+    .bitdrift.public.shared.platform.v1.Platform.Apple apple = 1;
+
+    // Targets Android platforms.
+    .bitdrift.public.shared.platform.v1.Platform.Android android = 2;
+  }
+}

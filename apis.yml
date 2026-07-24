@@ -1,8 +1,14 @@
 aid: bitdrift
 name: bitdrift
-description: 'bitdrift is a company surfaced as a portfolio company of amplify-partners and added to the
-  API Evangelist network as a stub for enrichment. Sector: developer-tools. This profile is a lead awaiting
-  the enrichment pipeline.'
+description: >-
+  bitdrift builds Capture, a cost-effective dynamic mobile observability platform for iOS, Android,
+  and React Native. A lightweight on-device SDK stores high-volume telemetry locally and uploads only
+  what is needed under real-time control from the bitdrift control plane, avoiding lengthy mobile
+  release cycles to change what is collected. The platform surfaces Instant Insights dashboards,
+  Workflows for custom metrics, funnels and session-capture rules, a Session Timeline for debugging,
+  Issues & Crashes tracking, and Alerts. It is operated through a web portal and the `bd` CLI, and
+  exposes a public, schema-first protobuf API over gRPC, Connect, and gRPC-over-JSON at
+  api-public.bitdrift.io. bitdrift is a developer-tools company backed by Amplify Partners.
 url: https://raw.githubusercontent.com/api-evangelist/bitdrift/refs/heads/main/apis.yml
 x-type: company
 x-source: vc-portfolio
@@ -10,13 +16,62 @@ x-backed-by:
 - amplify-partners
 x-tier: stub
 x-tier-reason: portfolio-lead
+accessModel:
+  pricing: unknown
+  onboarding: self-serve
+  trial: false
+  try_now: false
+  public: false
+  label: Self-serve signup
+  confidence: medium
+  source:
+  - authentication
+  generated: '2026-07-22'
+  method: derived
 specificationVersion: '0.20'
 created: '2026-07-17'
-modified: '2026-07-17'
+modified: '2026-07-18'
+image: https://bitdrift.io/v/7280840156499158247/images/hero-block-poster-preview.png
 tags:
 - Company
 - Developer Tools
-apis: []
+- Observability
+- Mobile
+- Monitoring
+- Logging
+- Crash Reporting
+- Session Replay
+- SDK
+- gRPC
+- Telemetry
+apis:
+- name: bitdrift Public API
+  description: >-
+    The bitdrift Capture public API — schema-first protobuf service definitions exposed over gRPC,
+    Connect, and gRPC-over-JSON at api-public.bitdrift.io. Services under the bitdrift.public.unary.*
+    package space cover Admin (API/SDK keys, connectors, views, notification groups), Workflows
+    (create/deploy/query workflow-backed telemetry and captured sessions), Issues & Crashes,
+    Dashboards & Charts, Timeline (session hydration, logs, spans, search), Alerts, Entities, and
+    Debug files. Authentication is via an API key in the x-bitdrift-api-key header.
+  humanURL: https://docs.bitdrift.io/api-guide/
+  baseURL: https://api-public.bitdrift.io
+  tags:
+  - Observability
+  - Mobile
+  - gRPC
+  - Protobuf
+  - Telemetry
+  properties:
+  - type: Protobuf
+    url: grpc/src/bitdrift/public
+  - type: Webhooks
+    url: asyncapi/bitdrift-webhooks.yml
+  - type: MCPServer
+    url: mcp/bitdrift-mcp.yml
+  - type: DataModel
+    url: data-model/bitdrift-data-model.yml
+  - type: ErrorCatalog
+    url: errors/bitdrift-problem-types.yml
 maintainers:
 - FN: Kin Lane
   email: kin@apievangelist.com
@@ -25,3 +80,62 @@ maintainers:
 common:
 - type: Website
   url: https://bitdrift.io
+- type: DeveloperPortal
+  url: https://docs.bitdrift.io
+- type: Documentation
+  url: https://docs.bitdrift.io/index.html
+- type: APIReference
+  url: https://docs.bitdrift.dev/api/
+- type: GettingStarted
+  url: https://docs.bitdrift.io/quickstart.html
+- type: Quickstart
+  url: https://docs.bitdrift.io/sdk/quickstart
+- type: Support
+  url: https://docs.bitdrift.io/support/contact
+- type: Blog
+  url: https://blog.bitdrift.io/
+- type: GitHubOrganization
+  url: https://github.com/bitdriftlabs
+- type: Roadmap
+  url: https://bitdrift.io/roadmap
+- type: Pricing
+  url: https://bitdrift.io/pricing
+- type: SignUp
+  url: https://bitdrift.io/signup
+- type: TermsOfService
+  url: https://docs.bitdrift.io/support/tos-policy
+- type: PrivacyPolicy
+  url: https://docs.bitdrift.io/support/privacy-policy
+- type: StatusPage
+  url: https://status.bitdrift.io/
+- type: ChangeLog
+  url: https://bitdrift.io/changelog
+- type: Compliance
+  url: https://blog.bitdrift.io/post/soc-2-type-ii
+- type: LLMsTxt
+  url: llms/bitdrift-llms.txt
+- type: Authentication
+  url: authentication/bitdrift-authentication.yml
+- type: Conventions
+  url: conventions/bitdrift-conventions.yml
+- type: Lifecycle
+  url: lifecycle/bitdrift-lifecycle.yml
+- type: Conformance
+  url: conformance/bitdrift-conformance.yml
+- type: CLI
+  url: cli/bitdrift-cli.yml
+- type: Packages
+  url: packages/bitdrift-packages.yml
+- type: SDKs
+  url: packages/bitdrift-packages.yml
+- type: ChangeLog
+  url: changelog/bitdrift-changelog.yml
+- type: AgentSkill
+  url: skills/_index.yml
+- type: DomainSecurity
+  url: security/bitdrift-domain-security.yml
+x-enrichment:
+  date: '2026-07-19'
+  status: backfilled
+  pass: local-v1
+  note: backfilled from .gitignore signal + verified work evidence

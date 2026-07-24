@@ -1,0 +1,89 @@
+generated: '2026-07-18'
+method: derived
+source: grpc/src/bitdrift/public (bitdriftlabs/api protobuf service definitions)
+note: >-
+  Entity graph derived from the public protobuf service families and their methods. Relationships
+  reflect how the documented services reference one another (e.g. workflows capture sessions;
+  sessions are read via the timeline; issue groups contain issues).
+entities:
+- name: Workflow
+  service: WorkflowService
+  description: Core building block for custom metrics, funnels, and session-capture rules.
+  key_operations: [ListWorkflows, GetWorkflow, CreateWorkflow, UpdateWorkflow, DeployWorkflow, StopWorkflow]
+- name: CapturedSession
+  service: WorkflowDataService
+  description: A session captured by a workflow's session-capture rules.
+  key_operations: [FetchCapturedSessions]
+- name: Session
+  service: TimelineService
+  description: A device session hydrated and read via the timeline (logs, spans, info).
+  key_operations: [HydrateSession, GetHydrationStatus, GetSessionInfo, GetSessionLogs, SearchSpans, AdvancedSearchSession]
+- name: IssueGroup
+  service: IssueService
+  description: A grouping of related issues/crashes with attributes and assignees.
+  key_operations: [ListIssueGroups, GetIssueGroup, UpdateIssueGroupStatus, UpdateIssueGroupAssignees, UpdateIssueGroupAttributes]
+- name: Issue
+  service: IssueService
+  description: An individual issue or crash, optionally correlated with feature flags.
+  key_operations: [ListIssues, ListIssuesV2, GetIssue, GetIssueFeatureFlags]
+- name: Dashboard
+  service: DashboardService
+  description: A custom dashboard composed of charts.
+  key_operations: [ListDashboards, GetDashboard, UpsertCustomDashboard, DeleteCustomDashboard]
+- name: Chart
+  service: DashboardService
+  description: A chart with metadata and queryable data.
+  key_operations: [ListCharts, GetChartsData, GetWorkflowCharts]
+- name: Alert
+  service: AlertsService
+  description: Workflow/issue alert configuration and history.
+  key_operations: [GetAllAlerts, GetAlertConfig, UpsertAlertConfig, GetAlertHistory]
+- name: Connector
+  service: AdminService
+  description: Outbound data connector / webhook destination.
+  key_operations: [GetConnectors, UpsertConnector, DeleteConnector]
+- name: ApiKey
+  service: AdminService
+  description: API key for public-API access, with explicit permissions.
+  key_operations: [CreateKey, GetKeys, RevokeKey]
+- name: View
+  service: AdminService
+  description: Saved issue/workflow view.
+  key_operations: [ListViews, GetView, UpsertView, DeleteView, FavoriteView]
+- name: Entity
+  service: EntityService
+  description: A known device/entity tracked for recording next-online-time.
+  key_operations: [ListKnownEntities, GetEntityInfo, UpsertKnownEntity, UpsertEntityRecordNextOnlineTime]
+- name: DebugFile
+  service: DebugFileService
+  description: Uploaded symbol / debug file asset for symbolication.
+  key_operations: [ListDebugFiles]
+relationships:
+- from: Workflow
+  to: CapturedSession
+  type: has_many
+  via: workflow session-capture rules
+- from: CapturedSession
+  to: Session
+  type: belongs_to
+  via: session_id
+- from: Workflow
+  to: Chart
+  type: has_many
+  via: GetWorkflowCharts
+- from: Dashboard
+  to: Chart
+  type: has_many
+  via: dashboard composition
+- from: IssueGroup
+  to: Issue
+  type: has_many
+  via: issue grouping
+- from: Alert
+  to: Workflow
+  type: belongs_to
+  via: workflow alert config
+- from: Connector
+  to: WebhookNotification
+  type: has_many
+  via: outbound delivery destination

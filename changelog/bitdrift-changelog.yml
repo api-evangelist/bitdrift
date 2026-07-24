@@ -1,0 +1,39 @@
+generated: '2026-07-18'
+method: searched
+source: https://bitdrift.io/changelog
+scheme: dated-product-changelog
+categories: [new, fixed, changed, deprecated]
+current_as_of: '2026-05-29'
+entries:
+- date: '2026-05-29'
+  category: new
+  title: Shareable issue filters and issue group attributes
+  highlight: >-
+    Copy and share links for filtered issue views, and add custom attributes directly on issue
+    groups to track external ticket references.
+- date: '2026-05-15'
+  category: fixed
+  title: Members search
+  highlight: Fixed a bug preventing search from working on the Members page in company settings.
+- date: '2026-05-14'
+  category: fixed
+  title: Data grid button overflow
+  highlight: Fixed buttons inside data grid rows overflowing outside the visible grid at narrow widths.
+- date: '2026-05-14'
+  category: new
+  title: Pending data indicators on line charts
+  highlight: Line charts now indicate pending/partial data.
+- date: '2026-05-04'
+  category: changed
+  title: Drag-to-zoom and improved tooltips for histogram bar charts
+  highlight: Drag across histogram bar charts to zoom into a bucket range, with smoother interaction.
+- date: '2026-05-01'
+  category: fixed
+  title: Line chart time axis display fix
+  highlight: >-
+    Fixed the time axis on line charts showing an incorrect range when data timestamps were missing
+    or partially defined.
+notes: >-
+  Recent window captured from the live marketing changelog SPA. The changelog is the source of truth;
+  SDK-level release notes are tracked separately at docs.bitdrift.io/sdk/releases-android and
+  releases-ios.

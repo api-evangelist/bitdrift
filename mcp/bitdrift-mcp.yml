@@ -1,0 +1,57 @@
+generated: '2026-07-18'
+method: derived
+status: candidate
+source: grpc/src/bitdrift/public (bitdriftlabs/api protobuf services)
+note: >-
+  bitdrift does not publish a hosted MCP server. It DOES publish Agent Skills (github.com/bitdriftlabs/
+  bd-skills, captured in skills/) that drive the bd CLI. This is a DERIVED candidate tool list mapping
+  the public protobuf service methods to MCP tools — a starting point, not an official server. Auth
+  would be the x-bitdrift-api-key header against api-public.bitdrift.io.
+server:
+  name: bitdrift
+  transport: http
+  base_url: https://api-public.bitdrift.io
+  auth: {type: apiKey, header: x-bitdrift-api-key}
+tools:
+- name: list_workflows
+  description: List workflows in the account.
+  source_operation: grpc/src/bitdrift/public/unary/workflows/v1/api.proto#WorkflowService.ListWorkflows
+- name: get_workflow
+  description: Get a single workflow by id.
+  source_operation: grpc/src/bitdrift/public/unary/workflows/v1/api.proto#WorkflowService.GetWorkflow
+- name: create_workflow
+  description: Create a new workflow.
+  source_operation: grpc/src/bitdrift/public/unary/workflows/v1/api.proto#WorkflowService.CreateWorkflow
+- name: deploy_workflow
+  description: Deploy a workflow.
+  source_operation: grpc/src/bitdrift/public/unary/workflows/v1/api.proto#WorkflowService.DeployWorkflow
+- name: fetch_captured_sessions
+  description: Fetch sessions captured by a workflow.
+  source_operation: grpc/src/bitdrift/public/unary/workflows/v1/captured_sessions.proto#WorkflowDataService.FetchCapturedSessions
+- name: list_issue_groups
+  description: List issue groups.
+  source_operation: grpc/src/bitdrift/public/unary/issues/v1/api.proto#IssueService.ListIssueGroups
+- name: get_issue
+  description: Get a single issue.
+  source_operation: grpc/src/bitdrift/public/unary/issues/v1/api.proto#IssueService.GetIssue
+- name: list_dashboards
+  description: List dashboards.
+  source_operation: grpc/src/bitdrift/public/unary/dashboards/v1/api.proto#DashboardService.ListDashboards
+- name: get_charts_data
+  description: Query chart data.
+  source_operation: grpc/src/bitdrift/public/unary/dashboards/v1/api.proto#DashboardService.GetChartsData
+- name: hydrate_session
+  description: Hydrate a session timeline.
+  source_operation: grpc/src/bitdrift/public/unary/timeline/v1/api.proto#TimelineService.HydrateSession
+- name: get_hydration_status
+  description: Poll hydration status for a session.
+  source_operation: grpc/src/bitdrift/public/unary/timeline/v1/api.proto#TimelineService.GetHydrationStatus
+- name: get_session_logs
+  description: Fetch logs for a hydrated session.
+  source_operation: grpc/src/bitdrift/public/unary/timeline/v1/api.proto#TimelineService.GetSessionLogs
+- name: list_debug_files
+  description: List uploaded symbol and debug file assets.
+  source_operation: grpc/src/bitdrift/public/unary/debug_files/v1/api.proto#DebugFileService.ListDebugFiles
+- name: create_api_key
+  description: Mint an API key.
+  source_operation: grpc/src/bitdrift/public/unary/admin/v1/api.proto#AdminService.CreateKey

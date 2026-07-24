@@ -1,0 +1,58 @@
+generated: '2026-07-18'
+method: searched
+source: https://docs.bitdrift.io/sdk/quickstart
+packages:
+- language: kotlin
+  platform: android
+  registry: maven
+  name: io.bitdrift:capture
+  url: https://repo1.maven.org/maven2/io/bitdrift/capture/
+  install: "implementation 'io.bitdrift:capture:+'"
+  source: https://github.com/bitdriftlabs/capture-sdk
+  official: true
+- language: swift
+  platform: ios
+  registry: swiftpm
+  name: capture-ios
+  url: https://github.com/bitdriftlabs/capture-ios
+  install: ".package(url: \"https://github.com/bitdriftlabs/capture-ios\", from: \"0.0.0\")"
+  official: true
+- language: swift
+  platform: ios
+  registry: cocoapods
+  name: BitdriftCapture
+  url: https://cocoapods.org/pods/BitdriftCapture
+  install: "pod 'BitdriftCapture'"
+  source: https://github.com/bitdriftlabs/capture-ios
+  official: true
+- language: javascript
+  platform: react-native
+  registry: npm
+  name: "@bitdrift/react-native"
+  url: https://www.npmjs.com/package/@bitdrift/react-native
+  install: npm install @bitdrift/react-native
+  official: true
+- language: typescript
+  platform: web
+  registry: github
+  name: capture-es
+  url: https://github.com/bitdriftlabs/capture-es
+  install: "see repository"
+  official: true
+  notes: JavaScript/ES build of the Capture SDK; not published to a public npm scope at time of capture.
+- language: shell
+  platform: cli
+  registry: homebrew
+  name: bd
+  url: https://github.com/bitdriftlabs/homebrew-bd
+  install: brew tap bitdriftlabs/bd && brew install bd
+  official: true
+  notes: The bd CLI binary; command surface catalogued in cli/bitdrift-cli.yml.
+- language: python
+  platform: skills
+  registry: github
+  name: bd-skills
+  url: https://github.com/bitdriftlabs/bd-skills
+  install: npx skills add bitdriftlabs/bd-skills
+  official: true
+  notes: Provider-published Agent Skills; captured in skills/.

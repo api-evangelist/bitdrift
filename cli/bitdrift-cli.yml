@@ -1,0 +1,53 @@
+generated: '2026-07-18'
+method: searched
+source: https://docs.bitdrift.io/cli/quickstart.html
+name: bd
+description: >-
+  The bitdrift `bd` command-line tool. It handles user login, log tailing, and exposes command
+  groups backed by bitdrift's public APIs for automating workflows, inspecting resources from a
+  terminal, and integrating bitdrift into CI/shell scripts. Most commands support `-o json` output.
+platforms: [macOS]
+install:
+  methods:
+  - type: homebrew
+    commands:
+    - brew tap bitdriftlabs/bd
+    - brew install bd
+  tap_repo: https://github.com/bitdriftlabs/homebrew-bd
+authentication:
+  interactive: bd auth
+  api_key_flag: "--api-key <key>"
+  api_key_env: BD_API_KEY
+  mint_key: bd key create api
+command_groups:
+- name: auth
+  use: Browser-based user login to the bitdrift SaaS.
+  example: bd auth
+- name: tail
+  use: Tail logs live from devices connected to the bitdrift SaaS using a query-expression language.
+  example: bd tail apple field foo bar level debug
+- name: key
+  use: Creating, listing, and revoking access keys.
+  example: bd key list
+- name: issue
+  use: Navigating issue groups, issues, and captured feature-flag state.
+  example: bd issue group list
+- name: connector
+  use: Managing outbound data connectors.
+  example: bd connector list
+- name: workflow
+  use: Inspecting, creating, updating, deploying, and stopping workflows.
+  example: bd workflow list
+- name: timeline
+  use: Hydrating a session timeline and fetching session logs.
+  example: bd timeline hydrate <session-id>
+tail_query_operators:
+- apple
+- android
+- "appversion <version>"
+- "deviceid <id>"
+- "devicecode <code> / code <code>"
+- "field <key> <value>"
+- "level <level>"
+tested_version: 0.2.15
+docs: https://docs.bitdrift.io/cli/quickstart.html

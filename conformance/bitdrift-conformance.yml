@@ -1,0 +1,29 @@
+generated: '2026-07-18'
+method: searched
+source: https://blog.bitdrift.io/post/soc-2-type-ii
+standards:
+- id: soc2-type-ii
+  conforms: true
+  evidence: bitdrift published a SOC 2 Type II announcement (blog.bitdrift.io/post/soc-2-type-ii)
+- id: grpc
+  conforms: true
+  evidence: public API exposes native gRPC transport (api-public.bitdrift.io:443)
+- id: connect-rpc
+  conforms: true
+  evidence: public API supports the Connect protocol (buf curl / Connect clients)
+- id: protobuf
+  conforms: true
+  evidence: schema-first protobuf service definitions under bitdrift.public.* (bitdriftlabs/api)
+- id: grpc-status-errors
+  conforms: true
+  evidence: errors follow canonical gRPC status model with Connect-style code/message
+- id: oauth2
+  conforms: false
+  evidence: public API uses API-key auth; JWT/OAuth not supported for direct public-API access
+- id: rfc9457-problem-details
+  conforms: false
+  evidence: errors use Connect/gRPC status shape, not application/problem+json
+compliance:
+  soc2_type_ii: true
+  published: https://blog.bitdrift.io/post/soc-2-type-ii
+  byo_bucket: https://blog.bitdrift.io/post/bring-your-own-bucket

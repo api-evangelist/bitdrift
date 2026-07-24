@@ -1,0 +1,2128 @@
+// api - bitdrift's client/server API definitions
+// Copyright Bitdrift, Inc. All rights reserved.
+//
+// Use of this source code and APIs are governed by a source available license that can be found in
+// the LICENSE file or at:
+// https://polyformproject.org/wp-content/uploads/2020/06/PolyForm-Shield-1.0.0.txt
+syntax = "proto3";
+
+package bitdrift.public.unary.workflows.v1;
+
+import "bitdrift/public/shared/annotations/api_ootb_fields.proto";
+import "bitdrift/public/shared/platform/v1/platform.proto";
+import "bitdrift/public/unary/admin/v1/access.proto";
+import "bitdrift/public/unary/common/v1/common.proto";
+import "bitdrift/public/unary/workflows/v1/workflow_metadata.proto";
+import "bitdrift_public/protobuf/workflow/v1/save_field.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+
+message GroupBy {
+  message StateValue {
+    // The scope of the state value to read when producing the group-by dimension.
+    .bitdrift.public.unary.workflows.v1.StateScope scope = 1 [(validate.rules).enum = {
+      defined_only: true
+      not_in: [0]
+    }];
+
+    // The key of the state value to read within the selected scope.
+    string key = 2 [(validate.rules).string = {max_len: 100}];
+  }
+
+  // Extracts multiple state entries and turns each match into a separate output item with two
+  // tags: one for the matched state key and one for the matched state value.
+  //
+  // For example, if a metric action has two normal tags and a multi tag that matches three feature
+  // flags, the action emits three metrics. Each metric includes the two normal tags plus the
+  // configured key/value tags for one matched state entry.
+  //
+  // If a regex is not specified, that side matches all state entries. This can produce a large
+  // number of items, subject to built-in cardinality limits.
+  message MultiTag {
+    // The scope of the state entries to match.
+    .bitdrift.public.unary.workflows.v1.StateScope scope = 1 [(validate.rules).enum = {
+      defined_only: true
+      not_in: [0]
+    }];
+
+    // The tag name populated with the matched state key.
+    string key_tag_name = 2 [(validate.rules).string = {
+      min_len: 1
+      max_len: 100
+    }];
+
+    // The tag name populated with the matched state value.
+    string value_tag_name = 3 [(validate.rules).string = {
+      min_len: 1
+      max_len: 100
+    }];
+
+    // Filters matched state keys. If not specified, all keys match.
+    optional string key_regex = 4 [(validate.rules).string = {max_len: 100}];
+
+    // Filters matched state values. If not specified, all values match.
+    optional string value_regex = 5 [(validate.rules).string = {max_len: 100}];
+  }
+
+  // One additional dimension to attach to emitted metrics for a chart time series. Exactly one
+  // source must be chosen. Each emitted metric will include the extracted value under the
+  // resulting dimension name so that value is available alongside the charted series.
+  message Value {
+    // The source used to populate this group-by dimension.
+    oneof group_by_type {
+      option (validate.required) = true;
+      // The value of the named log field from the event that produced the metric. The field name
+      // also becomes the dimension name on the emitted metric.
+      string field_key = 1 [(validate.rules).string = {max_len: 100}];
+
+      // The full log message body as the dimension value. This only applies to log events.
+      bool log_body = 2;
+
+      // A value read from state using the provided scope and key. The key becomes the dimension
+      // name on the emitted metric.
+      .bitdrift.public.unary.workflows.v1.GroupBy.StateValue state_value = 3;
+
+      // Multiple group-by values extracted from state entries. Each matched entry produces a
+      // separate emitted metric with two additional dimensions: one for the matched state key and
+      // one for the matched state value. The key/value dimension names are configured on the
+      // MultiTag. See the documentation on MultiTag for more details.
+      .bitdrift.public.unary.workflows.v1.GroupBy.MultiTag multi_tag = 4;
+    }
+  }
+
+  // Dimensions to collect for each emitted metric. Each entry adds one or more dimensions. For
+  // example, grouping an error-count time series by `error_type` makes that error type value
+  // available alongside the charted metric data.
+  repeated .bitdrift.public.unary.workflows.v1.GroupBy.Value values = 6 [(validate.rules).repeated = {max_items: 100}];
+}
+
+message Workflow {
+  message WorkflowTag {
+    // The raw value of the tag. This is what gets stored and used for filtering.
+    string value = 1 [(validate.rules).string = {
+      min_len: 1
+      max_len: 100
+    }];
+
+    // The user who created this tag.
+    .bitdrift.public.unary.common.v1.Owner created_by = 2;
+  }
+
+  enum WorkflowState {
+    // The workflow is not currently running and it has not been deployed.
+    IDLE = 0;
+    // The workflow has been deployed and it’s currently live.
+    LIVE = 1;
+    // The workflow is in the process of being deployed and it has not reached
+    // most live clients yet.
+    DEPLOYING = 2;
+    // The workflow has been deployed but it has expired and is no longer deployed.
+    // This is similar to IDLE but it indicates that the workflow was not explicitly stopped.
+    EXPIRED = 3;
+  }
+
+  // A unique identifier for the workflow. This is set automatically by the server upon workflow creation and is immutable.
+  string id = 1 [(validate.rules).string = {max_len: 100}];
+
+  // A human readable title for the workflow.
+  string name = 3 [(validate.rules).string = {max_len: 255}];
+
+  // The flows that make up this workflow. Each flow is a sequence of steps. Flows can be thought of
+  // as independent paths through the workflow graph. Each step contains one match rule. Steps can
+  // also contain exit conditions that allow resetting to the initial step in the flow based on
+  // match rules or timeouts.
+  repeated .bitdrift.public.unary.workflows.v1.Flow flows = 27 [(validate.rules).repeated = {max_items: 100}];
+
+  // The actions that make up this workflow. Each action is associated with one or more match IDs
+  // that are embedded in the steps of the flows. Individual actions may have restrictions on what
+  // referential match IDs they can be associated with. See the documentation for each action type
+  // for more details.
+  repeated .bitdrift.public.unary.workflows.v1.ActionRule actions = 28 [(validate.rules).repeated = {max_items: 100}];
+
+  // The current deployment state of the workflow.
+  .bitdrift.public.unary.workflows.v1.Workflow.WorkflowState state = 7 [(validate.rules).enum = {defined_only: true}];
+
+  // Read-only. Set automatically by the server when the workflow is created.
+  .google.protobuf.Timestamp created_at = 8;
+
+  // Read-only. Set automatically by the server whenever the workflow is modified.
+  .google.protobuf.Timestamp updated_at = 9;
+
+  // Read-only. The workflow owner assigned by the server.
+  .bitdrift.public.unary.common.v1.Owner owner = 12;
+
+  // Read-only. The most recent deployment time. Unset until the workflow is deployed.
+  .google.protobuf.Timestamp deployed_at = 13;
+
+  // The platform targets for this workflow. If empty, this will match _any_ platform.
+  repeated .bitdrift.public.shared.platform.v1.Platform platform_targets = 21 [(validate.rules).repeated = {max_items: 100}];
+
+  // Additional group by values that are collected for each collected metric within the workflow.
+  repeated string group_by_fields = 22 [(validate.rules).repeated = {max_items: 100}];
+
+  // The time at which the deployment expires based on the deployment_expiration condition.
+  // This is set automatically by the server and will be null if the deployment does not expire
+  // or if the workflow has not been deployed yet.
+  //
+  // Note that due to how LastSeen works, reading the workflow data counts as a "last seen" and will reset the
+  // expiration time.
+  .google.protobuf.Timestamp deployment_expiration_time = 24;
+
+  // A list of tags that have been assigned to this workflow. These can be used for filtering
+  // purposes within a view.
+  repeated .bitdrift.public.unary.workflows.v1.Workflow.WorkflowTag tags = 32 [(validate.rules).repeated = {max_items: 100}];
+}
+
+// An individual flow within a workflow.
+message Flow {
+  message ExclusiveFlow {}
+
+  message ParallelFlow {
+    // The maximum number of active "runs" for this flow. Defaults to 10 if not specified.
+    optional uint32 max_active_runs = 1;
+  }
+
+  // The steps that make up this flow.
+  repeated .bitdrift.public.unary.workflows.v1.Step steps = 1 [(validate.rules).repeated = {
+    min_items: 1
+    max_items: 100
+  }];
+
+  oneof flow_execution_type {
+    // Any match on the initial step causes the flow to reset. This is the default if not
+    // specified.
+    .bitdrift.public.unary.workflows.v1.Flow.ExclusiveFlow exclusive = 2;
+
+    // Multiple "runs" of the flow can occur in parallel. Runs are replaced FIFO if the active
+    // runs exceeds max_active_runs. A new run that matches and extracts the same field values
+    // on the initial step as an existing active run will replace the existing run. This
+    // execution mode is primarily used for flows that correlate on a specific field value.
+    .bitdrift.public.unary.workflows.v1.Flow.ParallelFlow parallel = 3;
+  }
+}
+
+// A single step within a flow.
+message Step {
+  // A condition that ends the current run of the flow from this step without advancing to the next
+  // step. When an exit condition is met, the current run is discarded and the flow waits to match
+  // the first step again.
+  message ExitCondition {
+    message TimeoutExit {
+      // The ID of this timeout exit. Must be unique within the workflow. This ID can be referenced
+      // by actions that accept timeout IDs.
+      string id = 1 [(validate.rules).string = {
+        min_len: 1
+        max_len: 100
+      }];
+
+      // The timeout condition for this exit path. Timeout exits are terminal: when the timeout
+      // elapses, the current run ends instead of advancing to another step.
+      .bitdrift.public.unary.workflows.v1.Rule.RuleTimeout timeout_rule = 2;
+    }
+
+    // Exactly one way for the step to exit early.
+    oneof exit_condition_type {
+      // Exit the current run if this match rule fires while the step is active.
+      .bitdrift.public.unary.workflows.v1.MatchRule match_rule = 1;
+
+      // Exit the current run if this timeout elapses while the step is active.
+      .bitdrift.public.unary.workflows.v1.Step.ExitCondition.TimeoutExit timeout = 2;
+    }
+  }
+
+  // The step's match rule. This rule must be satisfied to advance to the next step in the flow.
+  .bitdrift.public.unary.workflows.v1.MatchRule match_rule = 1;
+
+  // Zero or more early-exit conditions for the step. If any exit condition is met, the current
+  // run ends and the flow resets to wait for the first step again.
+  repeated .bitdrift.public.unary.workflows.v1.Step.ExitCondition exit_conditions = 2 [(validate.rules).repeated = {max_items: 100}];
+
+  // Describes an optional loop condition that allows looping back to a previous step in the flow.
+  // Must point to the match ID in the same step or a step earlier in the flow. Specifying a looping
+  // condition is only valid on the last step in the flow *unless* actions contains a Sankey rule
+  // that refers to the match ID of this step as one of the nodes.
+  optional string loop_match_id = 3 [(validate.rules).string = {max_len: 100}];
+
+  // Fields to save when this step is matched. These fields can be referred to by saved_field_id
+  // in a subsequent matcher. The ID of each SaveField must be unique within the flow. This is
+  // used for correlation matching in which flow completion is dependent on a particular set of
+  // field values being consistent across multiple steps in the flow.
+  repeated .bitdrift_public.protobuf.workflow.v1.SaveField save_fields = 4 [(validate.rules).repeated = {max_items: 100}];
+}
+
+// A match rule.
+message MatchRule {
+  // ID of this match rule. Must be unique within the workflow. This is referenced by action
+  // rules. See the documentation of individual action rules for restrictions on which match IDs
+  // are valid in that context.
+  string match_id = 1 [(validate.rules).string = {
+    min_len: 1
+    max_len: 100
+  }];
+
+  oneof match_condition_type {
+    // A caller-defined match built from predicates over log fields, log body, saved fields, or
+    // state values.
+    .bitdrift.public.unary.workflows.v1.GenericMatch generic_match = 2;
+
+    // An out-of-the-box match for common events that don't require custom field extraction. This is
+    // used for common app events like app launch, app background, etc.
+    .bitdrift.public.unary.workflows.v1.OotbMatch ootb_match = 3;
+
+    // A state change match that looks for changes in the value of a particular state key. This is
+    // used for matching on changes in state like connectivity, battery level, etc.
+    .bitdrift.public.unary.workflows.v1.StateChangeMatch state_change_match = 4;
+
+    // A match on the occurrence of a particular issue type. This is used for matching on issues
+    // like crashes, ANRs, etc. Currently issue matches are very limited in the workflow shapes they
+    // support. The issue match must be the first and only step in a flow and it cannot have any
+    // exit conditions. The only valid action that can be attached is plot chart. An issue workflow
+    // can have multiple issue match flows, but it's not possible to mix issue match steps with
+    // other step types.
+    .bitdrift.public.unary.workflows.v1.IssueMatch issue_match = 6;
+  }
+
+  // The % chance that a match will occur if the condition matches. This is the numerator of the
+  // percentage, with the denominator being 1,000,000. For example, if the value is 10,000, then 1%
+  // of matches will be sampled.
+  optional uint32 sample_rate = 5;
+}
+
+message IssueMatch {
+  oneof script_type {
+    // A valid ripsaw program. The program will be run against the incoming issue and can produce
+    // various outputs that both feed the attached matcher as well as affect certain operations such
+    // as grouping, team assignment, etc. See the documentation for issue scripting for more
+    // details. After the program runs, a synthetic log will be generated both with default fields
+    // as well as any fields generated by the program.
+    string program = 2 [(validate.rules).string = {max_len: 4096}];
+  }
+}
+
+message StateChangeMatch {
+  // Match conditions for the previous state. Leave empty to only match on the new value.
+  .bitdrift.public.unary.workflows.v1.StateCondition from = 1;
+
+  // Match conditions for the updated state. Leave empty to only match on the old value.
+  .bitdrift.public.unary.workflows.v1.StateCondition to = 2;
+
+  // The scope of the state value being observed.
+  .bitdrift.public.unary.workflows.v1.StateScope scope = 3 [(validate.rules).enum = {defined_only: true}];
+
+  // The key of the state value within the given scope.
+  string key = 4 [(validate.rules).string = {max_len: 100}];
+
+  // Additional match conditions for this OOTB event. This is an AND in addition to the
+  // previously defined event.
+  .bitdrift.public.unary.workflows.v1.GenericMatch generic_match = 5;
+}
+
+message OotbMatch {
+  // Cross-platform OOTB condition types. These events are emitted on all supported platforms.
+  // Where applicable, enum value documentation and metadata describe the well-known log fields
+  // carried by that event and matchable via `generic_match`. Platform-specific enums below share
+  // the same field definitions for values that appear here; only platform-exclusive values add
+  // new fields.
+  message GenericOotbConditionType {
+    enum GenericOotbConditionType {
+      // Invalid placeholder value. Do not use.
+      UNKNOWN = 0;
+      // App moves out of the foreground and begins backgrounding.
+      APP_BACKGROUND = 1;
+      // The SDK's built-in JS error handler captures a fatal JavaScript error.
+      APP_BUILT_IN_JS_FATAL_ERROR = 2;
+      // The SDK's built-in JS error handler captures a non-fatal JavaScript error.
+      APP_BUILT_IN_JS_NON_FATAL_ERROR = 3;
+      // App leaves the screen and its foreground UI closes.
+      APP_CLOSE = 4;
+      // App moves into the foreground and becomes active.
+      APP_FOREGROUND = 5;
+      // App launch completes for a new process.
+      APP_LAUNCH = 6 [(.bitdrift.public.shared.annotations.ootb_event_metadata) = {
+        well_known_fields: {
+          key: "startup_type"
+          description: "COLD, WARM, or HOT."
+          type: OOTB_FIELD_TYPE_STRING
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "startup_reason"
+          description: "Why the app was launched."
+          type: OOTB_FIELD_TYPE_STRING
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "startup_state"
+          description: "Startup state at launch time."
+          type: OOTB_FIELD_TYPE_STRING
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "startup_launch_mode"
+          description: "Activity launch mode."
+          type: OOTB_FIELD_TYPE_STRING
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "startup_was_forced_stopped"
+          description: "Whether the app was previously force-stopped."
+          type: OOTB_FIELD_TYPE_STRING
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "startup_time_to_initial_display_ms"
+          description: "Time from process start to first frame, if available."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "ms"
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "startup_intent_action"
+          description: "Intent action that triggered the launch, if present."
+          type: OOTB_FIELD_TYPE_STRING
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "_launch_type"
+          description: "Launch type (e.g., remote notification)."
+          type: OOTB_FIELD_TYPE_STRING
+          platform: OOTB_FIELD_PLATFORM_IOS
+        }
+        well_known_fields: {
+          key: "_scene"
+          description: "Scene that is activated."
+          type: OOTB_FIELD_TYPE_STRING
+          platform: OOTB_FIELD_PLATFORM_IOS
+        }
+      }];
+      // App reached time-to-interactive after launch. Carries the same fields as APP_LAUNCH.
+      APP_LAUNCH_TTI = 7;
+      // App opens into the foreground, either on a cold start or when reopened from the
+      // background.
+      APP_OPEN = 8;
+      // An app termination is recorded. On Android this includes OS-reported exit information; on
+      // Apple this corresponds to the app termination notification.
+      APP_TERMINATION = 9 [(.bitdrift.public.shared.annotations.ootb_event_metadata) = {
+        well_known_fields: {
+          key: "_app_exit_reason"
+          description: "iOS: \"app_will_terminate_notification\". Android: ApplicationExitInfo reason."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+      }];
+      // App updates to a new version.
+      APP_UPDATE = 10;
+      // Device battery state changes.
+      BATTERY_STATE_CHANGE = 11 [(.bitdrift.public.shared.annotations.ootb_event_metadata) = {
+        well_known_fields: {
+          key: "_state"
+          description: "Android: \"charging\"/\"unplugged\". iOS: UIDevice battery state string."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_battery_level"
+          description: "Battery percentage."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "percent"
+        }
+        well_known_fields: {
+          key: "_battery_val"
+          description: "Battery level as a float."
+          type: OOTB_FIELD_TYPE_FLOAT
+        }
+      }];
+      // A GraphQL request starts. Requires supported network instrumentation so the SDK can emit
+      // the underlying HTTP and GraphQL span data.
+      GQL_REQUEST = 12 [(.bitdrift.public.shared.annotations.ootb_event_metadata) = {
+        well_known_fields: {
+          key: "_method"
+          description: "HTTP method."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_host"
+          description: "Request host."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_path_template"
+          description: "Format: gql-{operation_name}."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_operation_name"
+          description: "GraphQL operation name."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_operation_type"
+          description: "GraphQL operation type (query/mutation/subscription)."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_operation_id"
+          description: "GraphQL operation ID."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_span_id"
+          description: "Span identifier."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+      }];
+      // A GraphQL response completes. Requires supported network instrumentation and carries all
+      // GQL_REQUEST fields plus response-specific fields.
+      GQL_RESPONSE = 13 [(.bitdrift.public.shared.annotations.ootb_event_metadata) = {
+        well_known_fields: {
+          key: "_method"
+          description: "HTTP method."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_host"
+          description: "Request host."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_path_template"
+          description: "Format: gql-{operation_name}."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_operation_name"
+          description: "GraphQL operation name."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_operation_type"
+          description: "GraphQL operation type (query/mutation/subscription)."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_operation_id"
+          description: "GraphQL operation ID."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_status_code"
+          description: "HTTP status code."
+          type: OOTB_FIELD_TYPE_INT
+        }
+        well_known_fields: {
+          key: "_duration_ms"
+          description: "Round-trip duration."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "ms"
+        }
+        well_known_fields: {
+          key: "_result"
+          description: "\"success\" or \"failure\"."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_span_id"
+          description: "Span identifier."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+      }];
+      // Device low-power mode toggles.
+      LOW_POWER_MODE = 14 [(.bitdrift.public.shared.annotations.ootb_event_metadata) = {
+        well_known_fields: {
+          key: "_low_power_enabled"
+          description: "Power save mode state."
+          type: OOTB_FIELD_TYPE_BOOL
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "_low_power_mode"
+          description: "Low power mode state."
+          type: OOTB_FIELD_TYPE_BOOL
+          platform: OOTB_FIELD_PLATFORM_IOS
+        }
+        well_known_fields: {
+          key: "_battery_val"
+          description: "Battery level as a float."
+          type: OOTB_FIELD_TYPE_FLOAT
+          platform: OOTB_FIELD_PLATFORM_IOS
+        }
+        well_known_fields: {
+          key: "_state"
+          description: "Battery charging state."
+          type: OOTB_FIELD_TYPE_STRING
+          platform: OOTB_FIELD_PLATFORM_IOS
+        }
+        well_known_fields: {
+          key: "_battery_level"
+          description: "Battery percentage."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "percent"
+          platform: OOTB_FIELD_PLATFORM_IOS
+        }
+      }];
+      // App memory pressure is recorded. On Android this is emitted when app memory usage meets
+      // the configured low-memory threshold. On Apple this is emitted for system memory pressure
+      // notifications.
+      MEMORY_PRESSURE = 15 [(.bitdrift.public.shared.annotations.ootb_event_metadata) = {
+        well_known_fields: {
+          key: "_jvm_used_kb"
+          description: "JVM heap currently used."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "KB"
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "_jvm_total_kb"
+          description: "JVM heap currently allocated/committed."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "KB"
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "_jvm_max_kb"
+          description: "JVM heap maximum size."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "KB"
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "_jvm_used_percent"
+          description: "JVM used as percent of max."
+          type: OOTB_FIELD_TYPE_FLOAT
+          unit: "percent"
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "_native_used_kb"
+          description: "Native heap allocated."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "KB"
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "_native_total_kb"
+          description: "Native heap total size."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "KB"
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "_memory_class"
+          description: "Per-app memory class reported by Android."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "MB"
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "_is_memory_low"
+          description: "Whether app memory usage is at or above the configured low-memory threshold."
+          type: OOTB_FIELD_TYPE_BOOL
+        }
+        well_known_fields: {
+          key: "_app_used_kb"
+          description: "App physical memory footprint."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "KB"
+          platform: OOTB_FIELD_PLATFORM_IOS
+        }
+        well_known_fields: {
+          key: "_app_limit_kb"
+          description: "Estimated app memory limit before termination."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "KB"
+          platform: OOTB_FIELD_PLATFORM_IOS
+        }
+        well_known_fields: {
+          key: "_device_kb"
+          description: "Total device RAM."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "KB"
+          platform: OOTB_FIELD_PLATFORM_IOS
+        }
+        well_known_fields: {
+          key: "_app_used_percent"
+          description: "App used memory as a percent of the estimated limit."
+          type: OOTB_FIELD_TYPE_FLOAT
+          unit: "percent"
+          platform: OOTB_FIELD_PLATFORM_IOS
+        }
+        well_known_fields: {
+          key: "_mem_level"
+          description: "Apple memory pressure level: normal, warning, or critical."
+          type: OOTB_FIELD_TYPE_STRING
+          platform: OOTB_FIELD_PLATFORM_IOS
+        }
+      }];
+      // An HTTP network request starts. Requires supported network instrumentation integration.
+      NETWORK_REQUEST = 16 [(.bitdrift.public.shared.annotations.ootb_event_metadata) = {
+        well_known_fields: {
+          key: "_method"
+          description: "HTTP method."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_host"
+          description: "Request host."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_path"
+          description: "Full request path (high cardinality)."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_path_template"
+          description: "Normalized path template (prefer for group_by)."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_query"
+          description: "Query string."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_span_id"
+          description: "Span identifier."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_request_body_bytes_expected_to_send_count"
+          description: "Expected request body size from Content-Length."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "bytes"
+        }
+      }];
+      // An HTTP network response completes. Requires supported network instrumentation integration.
+      NETWORK_RESPONSE = 17 [(.bitdrift.public.shared.annotations.ootb_event_metadata) = {
+        well_known_fields: {
+          key: "_method"
+          description: "HTTP method."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_host"
+          description: "Request host."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_path"
+          description: "Full request path (high cardinality)."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_path_template"
+          description: "Normalized path template (prefer for group_by)."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_query"
+          description: "Query string."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_status_code"
+          description: "HTTP status code."
+          type: OOTB_FIELD_TYPE_INT
+        }
+        well_known_fields: {
+          key: "_result"
+          description: "\"success\" or \"failure\". Prefer over _status_code for filtering."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_duration_ms"
+          description: "Round-trip duration."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "ms"
+        }
+        well_known_fields: {
+          key: "_error_type"
+          description: "Error type string (Android). iOS emits _error_code instead."
+          type: OOTB_FIELD_TYPE_STRING
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "_error_code"
+          description: "Numeric error code (iOS). Android emits _error_type instead."
+          type: OOTB_FIELD_TYPE_INT
+          platform: OOTB_FIELD_PLATFORM_IOS
+        }
+        well_known_fields: {
+          key: "_error_message"
+          description: "Human-readable error description."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_request_body_bytes_sent_count"
+          description: "Request body bytes sent."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "bytes"
+        }
+        well_known_fields: {
+          key: "_response_body_bytes_received_count"
+          description: "Response body bytes received."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "bytes"
+        }
+        well_known_fields: {
+          key: "_request_headers_bytes_count"
+          description: "Request header bytes."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "bytes"
+        }
+        well_known_fields: {
+          key: "_response_headers_bytes_count"
+          description: "Response header bytes."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "bytes"
+        }
+        well_known_fields: {
+          key: "_dns_resolution_duration_ms"
+          description: "DNS lookup duration."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "ms"
+        }
+        well_known_fields: {
+          key: "_tls_duration_ms"
+          description: "TLS handshake duration."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "ms"
+        }
+        well_known_fields: {
+          key: "_tcp_duration_ms"
+          description: "TCP connection duration."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "ms"
+        }
+        well_known_fields: {
+          key: "_fetch_init_duration_ms"
+          description: "Fetch initialization duration."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "ms"
+        }
+        well_known_fields: {
+          key: "_response_latency_ms"
+          description: "Time to first response byte."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "ms"
+        }
+        well_known_fields: {
+          key: "_protocol"
+          description: "Protocol used (e.g., h2, http/1.1)."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_span_id"
+          description: "Span identifier."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+      }];
+      // Device orientation changes.
+      ORIENTATION_CHANGE = 18 [(.bitdrift.public.shared.annotations.ootb_event_metadata) = {
+        well_known_fields: {
+          key: "_orientation"
+          description: "Android: \"portrait\"/\"landscape\". iOS: portrait, portraitUpsideDown, landscapeLeft, landscapeRight, faceUp, faceDown, unknown."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+      }];
+      // A periodic resource snapshot. Carries device and process resource metrics such as memory,
+      // battery, power, disk, and network throughput fields. Memory, battery, and
+      // low-power fields are emitted on every snapshot; disk-usage fields are sampled at most once
+      // every 24 hours.
+      RESOURCE = 19 [(.bitdrift.public.shared.annotations.ootb_event_metadata) = {
+        well_known_fields: {
+          key: "_jvm_used_kb"
+          description: "JVM heap currently used. Included on every Android RESOURCE snapshot."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "KB"
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "_jvm_max_kb"
+          description: "JVM heap maximum size. Included on every Android RESOURCE snapshot."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "KB"
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "_jvm_total_kb"
+          description: "JVM heap currently allocated or committed. Included on every Android RESOURCE snapshot."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "KB"
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "_jvm_used_percent"
+          description: "JVM used as a percent of max. Included on every Android RESOURCE snapshot."
+          type: OOTB_FIELD_TYPE_FLOAT
+          unit: "percent"
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "_is_memory_low"
+          description: "Whether the configured low-memory threshold is currently met. Present only when low-memory detection is configured."
+          type: OOTB_FIELD_TYPE_BOOL
+        }
+        well_known_fields: {
+          key: "_native_used_kb"
+          description: "Native heap allocated. Included on every Android RESOURCE snapshot."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "KB"
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "_native_total_kb"
+          description: "Native heap total size. Included on every Android RESOURCE snapshot."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "KB"
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "_memory_class"
+          description: "Per-app memory class reported by Android. Included on every Android RESOURCE snapshot."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "MB"
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "_app_used_kb"
+          description: "App physical memory footprint. Included on every Apple RESOURCE snapshot."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "KB"
+          platform: OOTB_FIELD_PLATFORM_IOS
+        }
+        well_known_fields: {
+          key: "_app_limit_kb"
+          description: "Estimated app memory limit before termination. Included on every Apple RESOURCE snapshot."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "KB"
+          platform: OOTB_FIELD_PLATFORM_IOS
+        }
+        well_known_fields: {
+          key: "_app_used_percent"
+          description: "App used memory as a percent of the estimated limit. Included on Apple snapshots when the memory limit estimate is valid."
+          type: OOTB_FIELD_TYPE_FLOAT
+          unit: "percent"
+          platform: OOTB_FIELD_PLATFORM_IOS
+        }
+        well_known_fields: {
+          key: "_device_kb"
+          description: "Total device RAM. Included on every Apple RESOURCE snapshot."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "KB"
+          platform: OOTB_FIELD_PLATFORM_IOS
+        }
+        well_known_fields: {
+          key: "_battery_val"
+          description: "Battery level as a float. Included on every RESOURCE snapshot. May be -1.0 on Apple simulator."
+          type: OOTB_FIELD_TYPE_FLOAT
+        }
+        well_known_fields: {
+          key: "_battery_level"
+          description: "Battery percentage. Included on every Android RESOURCE snapshot."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "percent"
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "_battery_level"
+          description: "Battery percentage when the battery level is known. Omitted on Apple simulator and other unknown battery states."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "percent"
+          platform: OOTB_FIELD_PLATFORM_IOS
+        }
+        well_known_fields: {
+          key: "_state"
+          description: "Battery charging state. Included on every RESOURCE snapshot."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_battery_level_change_per_min"
+          description: "Battery percentage-point change per minute. Positive means draining, negative means charging. Present only after the rolling 1-minute battery window is populated."
+          type: OOTB_FIELD_TYPE_FLOAT
+        }
+        well_known_fields: {
+          key: "_low_power_enabled"
+          description: "Low-power mode state. Included on every RESOURCE snapshot."
+          type: OOTB_FIELD_TYPE_BOOL
+        }
+        well_known_fields: {
+          key: "_cache_dir_size_bytes"
+          description: "Cache directory size. Sampled at most once every 24 hours."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "bytes"
+        }
+        well_known_fields: {
+          key: "_files_dir_size_bytes"
+          description: "App files directory size. Sampled at most once every 24 hours."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "bytes"
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "_external_cache_dir_size_bytes"
+          description: "External cache directory size, when available. Sampled at most once every 24 hours."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "bytes"
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "_external_files_dir_size_bytes"
+          description: "External files directory size, when available. Sampled at most once every 24 hours."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "bytes"
+          platform: OOTB_FIELD_PLATFORM_ANDROID
+        }
+        well_known_fields: {
+          key: "_documents_dir_size_bytes"
+          description: "Documents directory size. Sampled at most once every 24 hours."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "bytes"
+          platform: OOTB_FIELD_PLATFORM_IOS
+        }
+        well_known_fields: {
+          key: "_tmp_dir_size_bytes"
+          description: "Temporary directory size. Sampled at most once every 24 hours."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "bytes"
+          platform: OOTB_FIELD_PLATFORM_IOS
+        }
+        well_known_fields: {
+          key: "_request_bytes_per_min_count"
+          description: "Total outbound bytes over the preceding minute of tracked HTTP traffic. Present once the rolling 1-minute tracker has enough history."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "bytes/min"
+        }
+        well_known_fields: {
+          key: "_request_body_bytes_per_min_count"
+          description: "Outbound request-body bytes over the preceding minute of tracked HTTP traffic. Present once the rolling 1-minute tracker has enough history."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "bytes/min"
+        }
+        well_known_fields: {
+          key: "_request_headers_bytes_per_min_count"
+          description: "Outbound request-header bytes over the preceding minute of tracked HTTP traffic. Present once the rolling 1-minute tracker has enough history."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "bytes/min"
+        }
+        well_known_fields: {
+          key: "_response_bytes_per_min_count"
+          description: "Total inbound bytes over the preceding minute of tracked HTTP traffic. Present once the rolling 1-minute tracker has enough history."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "bytes/min"
+        }
+        well_known_fields: {
+          key: "_response_body_bytes_per_min_count"
+          description: "Inbound response-body bytes over the preceding minute of tracked HTTP traffic. Present once the rolling 1-minute tracker has enough history."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "bytes/min"
+        }
+        well_known_fields: {
+          key: "_response_headers_bytes_per_min_count"
+          description: "Inbound response-header bytes over the preceding minute of tracked HTTP traffic. Present once the rolling 1-minute tracker has enough history."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "bytes/min"
+        }
+      }];
+      // A screen or view is displayed.
+      SCREEN_VIEW = 20 [(.bitdrift.public.shared.annotations.ootb_event_metadata) = {
+        well_known_fields: {
+          key: "_screen_name"
+          description: "Name of the screen or view."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+      }];
+      // SDK configuration is applied during SDK startup.
+      SDK_CONFIGURATION = 21;
+      // A Session Replay frame is captured.
+      SESSION_REPLAY = 22;
+      // A custom span ends.
+      SPAN_END = 23 [(.bitdrift.public.shared.annotations.ootb_event_metadata) = {
+        well_known_fields: {
+          key: "_span_id"
+          description: "Span identifier."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_span_name"
+          description: "Span name."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_span_parent_id"
+          description: "Parent span identifier."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_duration_ms"
+          description: "Span duration."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "ms"
+        }
+        well_known_fields: {
+          key: "_result"
+          description: "Span result."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+      }];
+      // A custom span starts.
+      SPAN_START = 24 [(.bitdrift.public.shared.annotations.ootb_event_metadata) = {
+        well_known_fields: {
+          key: "_span_id"
+          description: "Span identifier."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_span_name"
+          description: "Span name."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_span_parent_id"
+          description: "Parent span identifier."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+      }];
+      // Device thermal state changes.
+      THERMAL_STATE_CHANGE = 25 [(.bitdrift.public.shared.annotations.ootb_event_metadata) = {
+        well_known_fields: {
+          key: "_thermal_state"
+          description: "Thermal state of the device."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+      }];
+      // Device timezone changes.
+      TIMEZONE_CHANGE = 26 [(.bitdrift.public.shared.annotations.ootb_event_metadata) = {
+        well_known_fields: {
+          key: "_time_zone"
+          description: "New timezone identifier."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+      }];
+    }
+  }
+
+  // Android-specific OOTB condition types. Includes all generic conditions plus Android-exclusive
+  // events. Shared values carry the same well-known fields documented on GenericOotbConditionType.
+  message AndroidOotbConditionType {
+    enum AndroidOotbConditionType {
+      UNKNOWN = 0;
+      // The SDK's built-in fatal issue handler captures an Android app hang.
+      APP_ANDROID_BUILT_IN_ANR = 1;
+      // The SDK's built-in fatal issue handler captures an Android native crash.
+      APP_ANDROID_BUILT_IN_NATIVE_CRASH = 2;
+      APP_BACKGROUND = 3;
+      APP_BUILT_IN_JS_FATAL_ERROR = 4;
+      APP_BUILT_IN_JS_NON_FATAL_ERROR = 5;
+      APP_CLOSE = 6;
+      // Android app crash. Carries crash details when available. Depending on the source, fields
+      // may describe a JVM exception or an OS-reported fatal exit.
+      APP_CRASH = 7 [(.bitdrift.public.shared.annotations.ootb_event_metadata) = {
+        well_known_fields: {
+          key: "_app_exit_source"
+          description: "\"UncaughtExceptionHandler\" or \"ApplicationExitInfo\"."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_app_exit_info"
+          description: "Exception class name (UncaughtExceptionHandler only)."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_app_exit_details"
+          description: "Exception message (UncaughtExceptionHandler only)."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_app_exit_thread"
+          description: "Thread name (UncaughtExceptionHandler only)."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_app_exit_description"
+          description: "Exit description (ApplicationExitInfo only)."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_app_exit_process_name"
+          description: "Process name (ApplicationExitInfo only)."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_app_exit_importance"
+          description: "Process importance (ApplicationExitInfo only)."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_app_exit_status"
+          description: "Exit status code (ApplicationExitInfo only)."
+          type: OOTB_FIELD_TYPE_INT
+        }
+        well_known_fields: {
+          key: "_app_exit_pss"
+          description: "Proportional set size at exit (ApplicationExitInfo only)."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "KB"
+        }
+        well_known_fields: {
+          key: "_app_exit_rss"
+          description: "Resident set size at exit (ApplicationExitInfo only)."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "KB"
+        }
+      }];
+      // Deprecated Android-only alias of APP_TERMINATION. Retained for legacy compatibility;
+      // prefer APP_TERMINATION for new workflows.
+      APP_EXIT = 8;
+      APP_FOREGROUND = 9;
+      APP_LAUNCH = 10;
+      APP_LAUNCH_TTI = 11;
+      APP_OPEN = 12;
+      APP_TERMINATION = 13;
+      APP_UPDATE = 14;
+      BATTERY_STATE_CHANGE = 15;
+      // A rendering issue is detected for a UI frame. `_frame_issue_type` distinguishes slow,
+      // frozen, and ANR-classified frames.
+      DROPPED_FRAME = 16 [(.bitdrift.public.shared.annotations.ootb_event_metadata) = {
+        well_known_fields: {
+          key: "_frame_issue_type"
+          description: "Slow, Frozen, or ANR."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_screen_name"
+          description: "Active screen name, if set."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+        well_known_fields: {
+          key: "_duration_ms"
+          description: "Frame duration."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "ms"
+        }
+      }];
+      GQL_REQUEST = 17;
+      GQL_RESPONSE = 18;
+      LOW_POWER_MODE = 19;
+      MEMORY_PRESSURE = 20;
+      NETWORK_REQUEST = 21;
+      NETWORK_RESPONSE = 22;
+      ORIENTATION_CHANGE = 23;
+      RESOURCE = 24;
+      SCREEN_VIEW = 25;
+      SDK_CONFIGURATION = 26;
+      SESSION_REPLAY = 27;
+      SPAN_END = 28;
+      SPAN_START = 29;
+      THERMAL_STATE_CHANGE = 30;
+      TIMEZONE_CHANGE = 31;
+    }
+  }
+
+  // Apple-specific OOTB condition types. Includes all generic conditions plus Apple-exclusive
+  // events. Shared values carry the same well-known fields documented on GenericOotbConditionType.
+  message AppleOotbConditionType {
+    enum AppleOotbConditionType {
+      UNKNOWN = 0;
+      // iOS app hang detected when the app stops responding for longer than the configured threshold.
+      ANR = 1 [(.bitdrift.public.shared.annotations.ootb_event_metadata) = {
+        well_known_fields: {
+          key: "_duration_ms"
+          description: "ANR duration."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "ms"
+        }
+        well_known_fields: {
+          key: "_threshold_duration_ms"
+          description: "Configured ANR threshold."
+          type: OOTB_FIELD_TYPE_INT
+          unit: "ms"
+        }
+        well_known_fields: {
+          key: "_span_id"
+          description: "Span identifier for the ANR."
+          type: OOTB_FIELD_TYPE_STRING
+        }
+      }];
+      APP_BACKGROUND = 2;
+      APP_BUILT_IN_JS_FATAL_ERROR = 3;
+      APP_BUILT_IN_JS_NON_FATAL_ERROR = 4;
+      APP_CLOSE = 5;
+      APP_FOREGROUND = 6;
+      // The SDK's built-in fatal issue handler captures an iOS app hang.
+      APP_IOS_BUILT_IN_ANR = 7;
+      // The SDK's built-in fatal issue handler captures an iOS crash.
+      APP_IOS_BUILT_IN_CRASH = 8;
+      APP_LAUNCH = 9;
+      APP_LAUNCH_TTI = 10;
+      APP_OPEN = 11;
+      APP_TERMINATION = 12;
+      APP_UPDATE = 13;
+      BATTERY_STATE_CHANGE = 14;
+      GQL_REQUEST = 15;
+      GQL_RESPONSE = 16;
+      LOW_POWER_MODE = 17;
+      MEMORY_PRESSURE = 18;
+      NETWORK_REQUEST = 19;
+      NETWORK_RESPONSE = 20;
+      ORIENTATION_CHANGE = 21;
+      RESOURCE = 22;
+      SCREEN_VIEW = 23;
+      SDK_CONFIGURATION = 24;
+      SESSION_REPLAY = 25;
+      SPAN_END = 26;
+      SPAN_START = 27;
+      THERMAL_STATE_CHANGE = 28;
+      TIMEZONE_CHANGE = 29;
+    }
+  }
+
+  oneof condition_type {
+    option (validate.required) = true;
+    // A cross-platform OOTB condition that applies to all supported platforms.
+    .bitdrift.public.unary.workflows.v1.OotbMatch.GenericOotbConditionType.GenericOotbConditionType generic_condition = 1 [(validate.rules).enum = {defined_only: true}];
+
+    // An Android-specific OOTB condition.
+    .bitdrift.public.unary.workflows.v1.OotbMatch.AndroidOotbConditionType.AndroidOotbConditionType android_condition = 2 [(validate.rules).enum = {defined_only: true}];
+
+    // An Apple-specific OOTB condition.
+    .bitdrift.public.unary.workflows.v1.OotbMatch.AppleOotbConditionType.AppleOotbConditionType apple_condition = 3 [(validate.rules).enum = {defined_only: true}];
+  }
+
+  // Additional match conditions for this OOTB event. This is an AND in addition to the
+  // previously defined event.
+  .bitdrift.public.unary.workflows.v1.GenericMatch generic_match = 4;
+}
+
+message GenericMatch {
+  message GenericMatchCondition {
+    message StateKey {
+      // The scope of the state key to look up.
+      .bitdrift.public.unary.workflows.v1.StateScope scope = 1 [(validate.rules).enum = {defined_only: true}];
+
+      // The key within the given scope to read the value from.
+      string key = 2 [(validate.rules).string = {max_len: 100}];
+    }
+
+    oneof lhs_type {
+      // Match against a log field.
+      string log_field = 1 [(validate.rules).string = {max_len: 100}];
+
+      // Match against the log body.
+      bool log_body = 2;
+
+      // Match against a JSON path expression inside a log field.
+      string log_field_json_path = 3 [(validate.rules).string = {max_len: 255}];
+
+      // A state value specified by the scope and key.
+      .bitdrift.public.unary.workflows.v1.GenericMatch.GenericMatchCondition.StateKey state_key = 4;
+    }
+
+    // The operator of the conditional.
+    .bitdrift.public.unary.workflows.v1.Operator operator = 5 [(validate.rules).enum = {defined_only: true}];
+
+    // Right hand side of the conditional. This is the value we want to match
+    // against. Depending on the operator this might be a number, a version, a
+    // regular expression, etc.
+    oneof rhs_type {
+      // A string value to match against.
+      string string_value = 6 [(validate.rules).string = {max_len: 512}];
+
+      // A semantic version value to match against.
+      string semver_value = 7 [(validate.rules).string = {max_len: 255}];
+
+      // An integer value to match against.
+      int32 int_value = 8;
+
+      // A double value to match against.
+      double double_value = 9;
+
+      // A reference to a value saved from a previous match rule.
+      string saved_field_id = 10 [(validate.rules).string = {max_len: 100}];
+    }
+  }
+
+  // A list of two or more matchers. Used to allow using a list within a oneof for and/or matching.
+  message MatcherList {
+    // The child matchers to evaluate together.
+    repeated .bitdrift.public.unary.workflows.v1.GenericMatch matchers = 1 [(validate.rules).repeated = {max_items: 100}];
+  }
+
+  oneof matcher {
+    // A single predicate to evaluate.
+    .bitdrift.public.unary.workflows.v1.GenericMatch.GenericMatchCondition base_matcher = 1;
+
+    // A list of predicates to be OR-ed together.
+    .bitdrift.public.unary.workflows.v1.GenericMatch.MatcherList or_matcher = 2;
+
+    // A list of predicates to be AND-ed together.
+    .bitdrift.public.unary.workflows.v1.GenericMatch.MatcherList and_matcher = 3;
+
+    // An inversion of a predicate.
+    .bitdrift.public.unary.workflows.v1.GenericMatch.GenericMatchCondition not_matcher = 4;
+  }
+}
+
+// An action rule defines workflow output or side-effect behavior such as charts, session capture,
+// or tracing.
+message ActionRule {
+  // ID of this action rule. Must be unique within the workflow. Other APIs may refer to this ID,
+  // and some actions also reference it. For example, chart and flush actions can refer to the
+  // `rule_id` of a measure time action.
+  string rule_id = 1 [(validate.rules).string = {
+    min_len: 1
+    max_len: 100
+  }];
+
+  // Exactly one action configuration.
+  oneof action_rule_type {
+    // Emits one or more time series that are rendered as a chart.
+    .bitdrift.public.unary.workflows.v1.Rule.RuleMetricChartConfiguration metric_chart_rule = 2;
+
+    // Triggers session capture by flushing buffered logs for the current session.
+    .bitdrift.public.unary.workflows.v1.Rule.RuleFlushConfiguration flush_rule = 3;
+
+    // Produces a funnel chart across ordered match rules in a single flow.
+    .bitdrift.public.unary.workflows.v1.Rule.RuleFunnelConfiguration funnel_rule = 4;
+
+    // Produces a Sankey diagram across match rules in a single flow.
+    .bitdrift.public.unary.workflows.v1.Rule.RuleSankeyDiagramConfiguration sankey_diagram_rule = 5;
+
+    // Measures elapsed time between two match rules in a flow and can feed other actions.
+    .bitdrift.public.unary.workflows.v1.Rule.RuleMeasureTime measure_time_rule = 7;
+
+    // Starts trace sampling for the current session when the referenced match rule fires.
+    .bitdrift.public.unary.workflows.v1.RuleStartTracing start_tracing_rule = 8;
+  }
+}
+
+// A trace-start action.
+message RuleStartTracing {
+  // The match ID that triggers trace sampling for the current session.
+  string match_id = 1 [(validate.rules).string = {
+    min_len: 1
+    max_len: 100
+  }];
+}
+
+message Rule {
+  message RuleFlushConfiguration {
+    // The server-generated ID for this rule action. This can be used to query
+    // for sessions that arrive at this rule action.
+    string id = 2 [(validate.rules).string = {max_len: 100}];
+
+    // The effective daily capture limit currently applied to this rule.
+    uint32 applied_daily_limit = 8;
+
+    // The match ID of the step that triggers session capture.
+    string match_id = 10 [(validate.rules).string = {max_len: 100}];
+  }
+
+  // A metrics action defines one or more time series that are computed from workflow matches and
+  // emitted with the metadata needed to combine them into a chart server-side.
+  message RuleMetricChartConfiguration {
+    // A reference to the match ID and field extraction that provides the value for a single time series.
+    message DataReference {
+      // The match ID that provides the value for this data reference. If extraction type is
+      // `measured_time`, this must point to a Measure Time rule.
+      string match_id = 3 [(validate.rules).string = {max_len: 100}];
+
+      // The value extracted from the log message that matched this step. If the oneof is not set,
+      // the value `1` is used, effectively counting the number of matching events.
+      oneof extraction_type {
+        // The name of the field to extract the value from.
+        string name = 2 [(validate.rules).string = {max_len: 100}];
+
+        // Extract the measured time from a completed Measure Time rule. This can only be set if
+        // the match_id points to a Measure Time rule.
+        bool measured_time = 4 [(validate.rules).bool.const = true];
+      }
+    }
+
+    message TimeSeries {
+      // A rate metric that is going to be generated for this time series. This
+      // is done by emitting simple counters for each of the extracted values
+      // and computing the ratio server-side.
+      message Rate {
+        // The data reference to use for the rate numerator.
+        .bitdrift.public.unary.workflows.v1.Rule.RuleMetricChartConfiguration.DataReference numerator = 1 [(validate.rules).message = {required: true}];
+
+        // The data reference to use for the rate denominator.
+        .bitdrift.public.unary.workflows.v1.Rule.RuleMetricChartConfiguration.DataReference denominator = 2 [(validate.rules).message = {required: true}];
+
+        // The server-generated ID for this rate metric. This can be used to
+        // query for the metric.
+        string numerator_id = 3 [(validate.rules).string = {max_len: 100}];
+
+        // The server-generated ID for the denominator metric. This can be used
+        // to query for the metric.
+        string denominator_id = 4 [(validate.rules).string = {max_len: 100}];
+
+        // An optional group by configuration for the time series. The chart
+        // will select a limited number of time series based on a top K lookup
+        // of the most relevant time series. If the group by is not set, the
+        // generated chart will show the time series as a single line.
+        .bitdrift.public.unary.workflows.v1.GroupBy group_by = 5;
+      }
+
+      // A histogram metric that is going to be generated for this time series.
+      // This is done by emitting histogram values for each value of the
+      // extracted value, aggregated server-side.
+      message Histogram {
+        // The data reference whose values will be recorded in the histogram.
+        .bitdrift.public.unary.workflows.v1.Rule.RuleMetricChartConfiguration.DataReference value = 1 [(validate.rules).message = {required: true}];
+
+        // An optional group by configuration for the time series. The chart
+        // will select a limited number of time series based on a top K lookup
+        // of the most relevant time series. If the group by is not set, the
+        // generated chart will show the time series with one line per (P50,
+        // P90, P99) percentile.
+        .bitdrift.public.unary.workflows.v1.GroupBy group_by = 2;
+
+        // The server-generated ID for this histogram metric. This can be used
+        // to query for the metric.
+        string id = 3 [(validate.rules).string = {max_len: 100}];
+      }
+
+      // A count metric that is going to be generated for this time series. This
+      // is done by emitting a counter with the extracted value.
+      message Count {
+        // The data reference whose values will be emitted into the counter.
+        .bitdrift.public.unary.workflows.v1.Rule.RuleMetricChartConfiguration.DataReference value = 1 [(validate.rules).message = {required: true}];
+
+        // An optional group by configuration for the time series. The chart
+        // will select a limited number of time series based on a top K lookup
+        // of the most relevant time series. If the group by is not set, the
+        // generated chart will show the time series as a single line.
+        .bitdrift.public.unary.workflows.v1.GroupBy group_by = 2;
+
+        // The server-generated ID for this count metric. This can be used to
+        // query for the metric.
+        string id = 3 [(validate.rules).string = {max_len: 100}];
+      }
+
+      // This time series type will produce an average counter, by emitting a synthetic denominator
+      // counter increment every time the numerator counter is extracted and incremented. In
+      // practice this is identical to rate, but the display will not be % based and the denominator
+      // is implicit.
+      message AverageCount {
+        // The data reference to use for the average count numerator.
+        .bitdrift.public.unary.workflows.v1.Rule.RuleMetricChartConfiguration.DataReference numerator = 1 [(validate.rules).message = {required: true}];
+
+        // The server-generated ID for this rate metric. This can be used to
+        // query for the metric.
+        string numerator_id = 3 [(validate.rules).string = {max_len: 100}];
+
+        // The server-generated ID for the denominator metric. This can be used
+        // to query for the metric.
+        string denominator_id = 4 [(validate.rules).string = {max_len: 100}];
+
+        // An optional group by configuration for the time series. The chart
+        // will select a limited number of time series based on a top K lookup
+        // of the most relevant time series. If the group by is not set, the
+        // generated chart will show the time series as a single line.
+        .bitdrift.public.unary.workflows.v1.GroupBy group_by = 5;
+      }
+
+      message TrackUnique {
+        oneof track_unique_type {
+          option (validate.required) = true;
+          // This is computed entirely server-side and thus does not require any client emission.
+          bool device_id = 1 [(validate.rules).bool.const = true];
+        }
+      }
+
+      // Exactly one metric shape for this time series.
+      oneof type {
+        option (validate.required) = true;
+        // Emits a numerator and denominator and renders their ratio as a percentage-based time
+        // series.
+        .bitdrift.public.unary.workflows.v1.Rule.RuleMetricChartConfiguration.TimeSeries.Rate rate = 1;
+
+        // Records numeric samples and renders percentile lines such as P50, P90, and P99.
+        .bitdrift.public.unary.workflows.v1.Rule.RuleMetricChartConfiguration.TimeSeries.Histogram histogram = 2;
+
+        // Emits counts for matching events or extracted values.
+        .bitdrift.public.unary.workflows.v1.Rule.RuleMetricChartConfiguration.TimeSeries.Count count = 3;
+
+        // Emits an average based on a numerator series and an implicit denominator count.
+        .bitdrift.public.unary.workflows.v1.Rule.RuleMetricChartConfiguration.TimeSeries.AverageCount average_count = 10;
+      }
+
+      // This is the normalized ID for the time series. It is the ID that ends up being used in
+      // chart data requests, attaching alerts, etc.
+      string aggregated_id = 8 [(validate.rules).string = {max_len: 100}];
+
+      // Whether to track unique contributions to each aggregation interval for this time series.
+      .bitdrift.public.unary.workflows.v1.Rule.RuleMetricChartConfiguration.TimeSeries.TrackUnique track_unique = 9;
+    }
+
+    // The time series that should be generated for this chart.
+    repeated .bitdrift.public.unary.workflows.v1.Rule.RuleMetricChartConfiguration.TimeSeries time_series = 4 [(validate.rules).repeated = {max_items: 100}];
+  }
+
+  // A Sankey diagram action combines multiple steps in a single flow user journey into a single
+  // diagram that shows which paths are taken through the flow.
+  message RuleSankeyDiagramConfiguration {
+    // Each node corresponds to a match rule in the flow and supplies the value recorded when that
+    // node is visited.
+    message Node {
+      // ID of the corresponding match rule. It must resolve to a known match ID, and all node IDs
+      // in a single Sankey diagram must belong to the same flow.
+      string id = 1 [(validate.rules).string = {
+        min_len: 1
+        max_len: 100
+      }];
+
+      // The value recorded for this node. Workflow validation rejects nodes that omit this field,
+      // and `fixed` / `extract_field` must be non-empty when used.
+      //
+      // Nodes in the loop section of the Sankey must use `extract_field`. Nodes outside the loop
+      // section must use `fixed`.
+      oneof node_value {
+        // The fixed value.
+        string fixed = 2 [(validate.rules).string = {max_len: 255}];
+
+        // The name of the field whose value should be extracted.
+        string extract_field = 3 [(validate.rules).string = {max_len: 100}];
+      }
+    }
+
+    // The list of nodes. Since workflows can have loops and each node corresponds to a matcher
+    // within a workflow, it's possible for a given matcher and its corresponding node to be visited
+    // multiple times. For each visit, a new value is extracted.
+    //
+    // Additional details related to each node of the diagram. This data is not modified
+    // by the server during workflow updates, allowing the frontend to store
+    // information that remains stable between updates.
+    //
+    // All target nodes must be within the same flow. The loop section is the portion of the flow
+    // covered by a loop back-edge; nodes in that section are treated as extracted dynamic values,
+    // while nodes before or after it are fixed labels.
+    repeated .bitdrift.public.unary.workflows.v1.Rule.RuleSankeyDiagramConfiguration.Node nodes = 1 [(validate.rules).repeated = {max_items: 100}];
+
+    // The server-generated ID for this rule action. This uniquely identifies the Sankey diagram
+    // in a way which is consistent between workflows that define the same Sankey diagram.
+    string id = 2 [(validate.rules).string = {max_len: 100}];
+  }
+
+  // A funnel action combines data from multiple steps in a single flow into one chart that shows
+  // drop-off between steps. Each funnel step corresponds to a match rule in the flow, identified by
+  // its match ID.
+  message RuleFunnelConfiguration {
+    // The server-generated metric IDs for this funnel. There is one ID per referenced match ID, in
+    // the same order as `match_ids`.
+    repeated string ids = 2 [(validate.rules).repeated = {max_items: 100}];
+
+    // The match IDs in the workflow that correspond to the steps of the funnel. All match IDs must
+    // be from the same flow.
+    repeated string match_ids = 4 [(validate.rules).repeated = {max_items: 100}];
+  }
+
+  message RuleMeasureTime {
+    message MeasureTimeCondition {
+      // The operator to use when evaluating the duration threshold.
+      .bitdrift.public.unary.workflows.v1.Operator operator = 2 [(validate.rules).enum.defined_only = true];
+
+      // The duration threshold to use when evaluating the condition.
+      .google.protobuf.Duration duration_threshold = 3 [(validate.rules).message = {required: true}];
+    }
+
+    // A unique identifier for this action that will be included in the generated message body.
+    string name = 1 [(validate.rules).string = {max_len: 255}];
+
+    // The match ID where the measurement starts. It must be in the same flow as `end_match_id`.
+    string start_match_id = 6 [(validate.rules).string = {max_len: 100}];
+
+    // The match ID where the measurement ends. It must be in the same flow as `start_match_id`.
+    string end_match_id = 7 [(validate.rules).string = {max_len: 100}];
+
+    // Correlates the start and end matches using a shared field value. This is useful when the
+    // start and end can be racy and we might otherwise measure time between unrelated events. For
+    // example:
+    //
+    //  - Download started, id=A
+    //  - Download started, id=B
+    //  - Download completed, id=A
+    //  - Download completed, id=B
+    //
+    // Without this we'd be measuring the time between B started and A completed.
+    optional string correlation_field_name = 4 [(validate.rules).string = {max_len: 100}];
+
+    // Additional fields to extract from the end match when the time measurement completes.
+    repeated string additional_extracted_fields = 5 [(validate.rules).repeated = {max_items: 100}];
+
+    // An optional condition to check when time measurement is complete. If specified, actions that
+    // target the match_id of this rule will only be triggered if the condition is met.
+    .bitdrift.public.unary.workflows.v1.Rule.RuleMeasureTime.MeasureTimeCondition measure_time_condition = 8;
+  }
+
+  // A timeout-based exit that can be attached anywhere a step can define exit conditions. Timeout
+  // exits are terminal and do not advance to another step. A single step can define at most one
+  // timeout exit.
+  message RuleTimeout {
+    enum DurationUnit {
+      MILLISECONDS = 0;
+      SECONDS = 1;
+      MINUTES = 2;
+      HOURS = 3;
+    }
+
+    // The length of time to wait before the timeout exit fires.
+    uint32 duration = 1 [(validate.rules).uint32.gt = 0];
+
+    // The unit for `duration`.
+    .bitdrift.public.unary.workflows.v1.Rule.RuleTimeout.DurationUnit duration_unit = 2 [(validate.rules).enum.defined_only = true];
+  }
+}
+
+enum StateScope {
+  UNKNOWN = 0;
+  FEATURE_FLAG_EXPOSURE = 1;
+}
+
+enum MatchType {
+  STRING = 0;
+  INT = 1;
+  SEMVER = 2;
+  DOUBLE = 3;
+}
+
+enum Operator {
+  EQUAL = 0;
+  NOT_EQUAL = 1;
+  GREATER_THAN = 2;
+  GREATER_THAN_OR_EQUAL = 3;
+  LESS_THAN = 4;
+  LESS_THAN_OR_EQUAL = 5;
+  REGEX = 6;
+  // The operator expects a list of the elements on the right side.
+  // The API supports a single string as the value on the right side of the
+  // operator so we follow a convention when you can provide multiple values
+  // in a single string by separating them with a '~~' string.
+  IN = 7;
+  // The operator expects a list of the elements on the right side.
+  // The API supports a single string as the value on the right side of the
+  // operator so we follow a convention when you can provide multiple values
+  // in a single string by separating them with a '~~' string.
+  NOT_IN = 8;
+  // An inversion of a regex.
+  NOT_REGEX = 9;
+  // A simplified regex syntax, where '*' is the wildcard character and '?'
+  // matches a single character and there are no other special characters.
+  //
+  // Matches are always made against the entire string.
+  WILDCARD = 10;
+  // A negation of the WILDCARD operator.
+  NOT_WILDCARD = 11;
+  // The operator doesn't expect any value on the right side.
+  // Matches if a value of a given field is set.
+  SET = 12;
+  // The operator doesn't expect any value on the right side.
+  // An inversion of a "SET" operator.
+  NOT_SET = 13;
+}
+
+message StateCondition {
+  // The type used to interpret both the observed state value and the provided `value` before
+  // comparison.
+  .bitdrift.public.unary.workflows.v1.MatchType match_type = 1 [(validate.rules).enum = {defined_only: true}];
+
+  // The comparison operator to apply after converting values according to `match_type`.
+  .bitdrift.public.unary.workflows.v1.Operator operator = 2 [(validate.rules).enum = {defined_only: true}];
+
+  // The comparison value, encoded as a string. Its format must match `match_type`. For example,
+  // use `1.2.3` for `SEMVER` or `42` for `INT`.
+  string value = 3 [(validate.rules).string = {max_len: 255}];
+}
+
+message Violation {
+  // User friendly message that explains the violation.
+  string message = 1;
+
+  // The match or rule ID that this violation is associated with.
+  // Only used in v3.
+  string match_or_rule_id = 3;
+}
+
+message GetWorkflowRequest {
+  // The ID of the workflow to retrieve.
+  string workflow_id = 2 [(validate.rules).string = {max_len: 100}];
+}
+
+message GetWorkflowResponse {
+  // The workflow that was retrieved in full.
+  .bitdrift.public.unary.workflows.v1.Workflow workflow = 1;
+
+  // The metadata for the workflow.
+  .bitdrift.public.unary.workflows.v1.WorkflowMetadata metadata = 3;
+
+  // The chart metadata that applies to this workflow.
+  repeated .bitdrift.public.unary.workflows.v1.PerRuleChartMetadata per_rule_chart_metadata = 4;
+}
+
+message Filter {
+  message Owned {}
+
+  message Unowned {}
+
+  message Favorites {}
+
+  message Active {}
+
+  oneof type {
+    option (validate.required) = true;
+    // Filters on whether the current user owns the entity.
+    .bitdrift.public.unary.workflows.v1.Filter.Owned owned = 1;
+
+    // Filters on whether the current user does not own the entity.
+    .bitdrift.public.unary.workflows.v1.Filter.Unowned unowned = 2;
+
+    // Filters on whether the current user has favorited the entity.
+    .bitdrift.public.unary.workflows.v1.Filter.Favorites favorites = 3;
+
+    // Filters on whether the entity is active.
+    .bitdrift.public.unary.workflows.v1.Filter.Active active = 4;
+  }
+}
+
+// A list of potential queries used to fetch a list of workflows
+// Each query will be combined as a logical AND
+// For example: 'platform is android' AND 'workflow not owned by me' AND 'workflow is deployed'
+message WorkflowListQuery {
+  enum TagOperator {
+    UNSPECIFIED_OPERATOR = 0;
+    INCLUDES = 1;
+    EXCLUDES = 2;
+  }
+
+  enum TagMatch {
+    UNSPECIFIED_MATCH = 0;
+    ANY_OF = 1;
+    ALL_OF = 2;
+  }
+
+  // A single predicate over workflow tags.
+  // Example: "tags INCLUDES ANY_OF [foo, bar]" or "tags EXCLUDES ALL_OF [baz, qux]".
+  message TagCondition {
+    .bitdrift.public.unary.workflows.v1.WorkflowListQuery.TagOperator operator = 1 [(validate.rules).enum = {
+      defined_only: true
+      not_in: [0]
+    }];
+
+    .bitdrift.public.unary.workflows.v1.WorkflowListQuery.TagMatch match = 2 [(validate.rules).enum = {
+      defined_only: true
+      not_in: [0]
+    }];
+
+    repeated string tags = 3 [(validate.rules).repeated = {
+      min_items: 1
+      max_items: 20
+      items: {
+        string: {
+          min_len: 1
+          max_len: 100
+        }
+      }
+    }];
+  }
+
+  // All tag conditions must be true (logical AND).
+  message TagAllOf {
+    repeated .bitdrift.public.unary.workflows.v1.WorkflowListQuery.TagCondition conditions = 1 [(validate.rules).repeated = {
+      min_items: 1
+      max_items: 20
+    }];
+  }
+
+  // A filter that matches when at least one TagAllOf group is satisfied (logical OR of ANDs).
+  // Example: (INCLUDES ALL_OF [foo, bar] AND EXCLUDES ANY_OF [baz]) OR (INCLUDES ANY_OF [qux])
+  message TagFilter {
+    repeated .bitdrift.public.unary.workflows.v1.WorkflowListQuery.TagAllOf any_of = 1 [(validate.rules).repeated = {
+      min_items: 1
+      max_items: 20
+    }];
+  }
+
+  // The platforms to filter workflows by. If empty, workflows for all platforms will be returned.
+  // Will be combined as logical OR
+  repeated .bitdrift.public.shared.platform.v1.Platform target_platforms = 1 [(validate.rules).repeated = {max_items: 100}];
+
+  // Filters workflows by access permission levels for a specified user.
+  // For example, callers can request workflows where a user has EDIT access.
+  // Callers can also exclude workflows where a user has OWNER access.
+  .bitdrift.public.unary.admin.v1.AccessPermissionQuery access = 2;
+
+  // The deployed state of the workflows to filter by. If empty, workflows in all states will be returned.
+  optional .bitdrift.public.unary.workflows.v1.Workflow.WorkflowState workflow_state = 3 [(validate.rules).enum = {defined_only: true}];
+
+  // An optional structured tag filter. This supports combining include and exclude predicates
+  // using logical OR of AND groups. If unset, workflows will not be filtered by tags.
+  .bitdrift.public.unary.workflows.v1.WorkflowListQuery.TagFilter tags = 4;
+
+  // An optional workflow id filter to filter workflows by ID. If empty, workflows will not be filtered by ID.
+  // This is intended to provide a way to create a view for ONLY specific workflows.
+  repeated string workflow_id = 5 [(validate.rules).repeated = {
+    max_items: 100
+    items: {string: {max_len: 100}}
+  }];
+
+  // An optional workflow name to filter by. This is a case insensitive substring match.
+  optional string workflow_name = 6 [(validate.rules).string = {max_len: 255}];
+
+  // An optional favorited filter to filter workflows by whether they are explicitly favorited by the current user, or explicitly NOT favorited by the current user.
+  // If unset, workflows will not be filtered by favorited status.
+  optional bool favorited = 7;
+}
+
+message ListWorkflowsRequest {
+  message Sort {
+    enum SortKey {
+      SORT_KEY_UNSPECIFIED = 0;
+      DISPLAY_NAME = 1;
+      CREATION_TIME = 2;
+      STATUS = 3;
+      OWNER_NAME = 4;
+      FAVORITED = 5;
+    }
+
+    // Selects which caller-visible workflow attribute to order by.
+    .bitdrift.public.unary.workflows.v1.ListWorkflowsRequest.Sort.SortKey key = 1 [(validate.rules).enum = {defined_only: true}];
+
+    // Selects whether results are returned in ascending or descending order.
+    .bitdrift.public.unary.common.v1.SortDirection direction = 2 [(validate.rules).enum = {defined_only: true}];
+  }
+
+  // Used to paginate through results. To get the next page result, set this to
+  // the desired starting offset. For example, setting to 10 will start with the
+  // 10th record. The default value is 0.
+  optional uint32 offset = 1;
+
+  // This defines the upper bound of the number of items returned. The maximum
+  // value supported is 100, meaning that we’ll never return more than
+  // max(items.count, limit, 100).
+  optional uint32 limit = 2 [(validate.rules).uint32 = {
+    gte: 1
+    lte: 100
+  }];
+
+  // Filter the list of workflows based on the current user's relationship to
+  // the workflow. This is a logical OR. If no filters are supplied, all
+  // workflows are returned.
+  repeated .bitdrift.public.unary.workflows.v1.Filter filters = 3 [(validate.rules).repeated = {max_items: 100}];
+
+  // Filter the list of workflows based on the platform(s) that that workflow
+  // targets. This is a logical OR. If no platforms are supplied, all workflows are returned.
+  repeated .bitdrift.public.shared.platform.v1.Platform platform_targets = 5 [(validate.rules).repeated = {max_items: 100}];
+
+  // An optional query used to filter the returned workflows, for example to
+  // build a view of workflows matching specific criteria. If no query is
+  // supplied, all workflows are returned. When a query is supplied, it takes
+  // precedence over the other filter fields on this request.
+  .bitdrift.public.unary.workflows.v1.WorkflowListQuery query = 6;
+
+  // Orders workflows by caller-visible attributes. Apply criteria in the order provided.
+  repeated .bitdrift.public.unary.workflows.v1.ListWorkflowsRequest.Sort sort = 7 [(validate.rules).repeated = {max_items: 100}];
+}
+
+message ListWorkflowsResponse {
+  message Item {
+    // The workflow returned for this list item.
+    .bitdrift.public.unary.workflows.v1.Workflow workflow = 1;
+
+    .bitdrift.public.unary.workflows.v1.WorkflowMetadata metadata = 5;
+  }
+
+  // An array of workflow objects. See Workflow for details about the object.
+  repeated .bitdrift.public.unary.workflows.v1.ListWorkflowsResponse.Item items = 1;
+
+  // The total number of workflows (regardless of pagination).
+  uint32 total_workflows = 2;
+
+  // The total number of active workflows (regardless of pagination).
+  uint32 total_active_workflows = 3;
+
+  // The total number of filtered workflows (regardless of pagination).
+  uint32 total_filtered_workflows = 4;
+}
+
+message CreateWorkflowRequest {
+  // The ID of the parent exploration. This is mapped to the REST path.
+  string exploration_id = 1 [(validate.rules).string = {max_len: 100}];
+
+  // The workflow configuration to create.
+  .bitdrift.public.unary.workflows.v1.Workflow workflow = 2;
+
+  // Optional metadata to attach to the workflow.
+  .bitdrift.public.unary.workflows.v1.WorkflowMetadata metadata = 3;
+
+  // Optional chart metadata to attach. This is useful inline with workflow updates to provide
+  // defaults for rules with charts attached.
+  repeated .bitdrift.public.unary.workflows.v1.PerRuleChartMetadata per_rule_chart_metadata = 5 [(validate.rules).repeated = {max_items: 100}];
+}
+
+message CreateWorkflowResponse {
+  // Unique identifier for the created workflow.
+  //
+  string id = 1;
+}
+
+message UpdateWorkflowRequest {
+  // The ID of the workflow to update.
+  string workflow_id = 2 [(validate.rules).string = {max_len: 100}];
+
+  // The updated workflow. This should be the entire workflow with all changes applied, not just the
+  // delta. The server will apply the changes and return the fully updated workflow in the response.
+  .bitdrift.public.unary.workflows.v1.Workflow workflow = 3;
+
+  // Optional updated metadata to attach to the workflow. Metadata can always be changed while
+  // the workflow is deployed.
+  .bitdrift.public.unary.workflows.v1.WorkflowMetadata metadata = 4;
+
+  // Optional chart metadata to attach. This is useful inline with workflow updates to provide
+  // defaults for rules with charts attached.
+  repeated .bitdrift.public.unary.workflows.v1.PerRuleChartMetadata per_rule_chart_metadata = 6 [(validate.rules).repeated = {max_items: 100}];
+}
+
+message UpdateWorkflowResponse {
+  message BlockingViolation {
+    // A chart has been removed or modified in a way that would cause the alert to no longer be
+    // valid (the target aggregated ID has changed). The user must be notified to remove the
+    // alert before proceeding.
+    message ModifiedChartHasAlert {
+      // The ID of the rule that has an alert.
+      string rule_id = 1;
+
+      // The time series aggregated ID that the alert is targeting. This can be used for linking
+      // out to the alert configuration as alert CRUD operations use this ID.
+      string aggregated_id = 2;
+    }
+
+    oneof violation_type {
+      // A chart was modified in a way that would invalidate an attached alert.
+      .bitdrift.public.unary.workflows.v1.UpdateWorkflowResponse.BlockingViolation.ModifiedChartHasAlert modified_chart_has_alert = 1;
+    }
+  }
+
+  // The updated workflow with all server-generated fields. If the update has failed with
+  // violations, this will be the state of the workflow before the update. Most violations are
+  // held until deployment time as we expect the user to have broken workflows during development,
+  // but some need user action right away.
+  .bitdrift.public.unary.workflows.v1.Workflow workflow = 1;
+
+  // The updated metadata with all server-generated fields.
+  .bitdrift.public.unary.workflows.v1.WorkflowMetadata metadata = 4;
+
+  // The chart metadata that applies to this workflow.
+  repeated .bitdrift.public.unary.workflows.v1.PerRuleChartMetadata per_rule_chart_metadata = 6;
+
+  // If non-empty, the operation failed. These are violations that need to be resolved before the workflow can be updated.
+  repeated .bitdrift.public.unary.workflows.v1.UpdateWorkflowResponse.BlockingViolation violations = 3;
+}
+
+message RenameWorkflowRequest {
+  // The ID of the workflow to rename.
+  string workflow_id = 2 [(validate.rules).string = {max_len: 100}];
+
+  // The new human-readable workflow name.
+  string name = 3 [(validate.rules).string = {max_len: 255}];
+}
+
+message RenameWorkflowResponse {
+  // The renamed workflow with all server-generated fields.
+  .bitdrift.public.unary.workflows.v1.Workflow workflow = 1;
+
+  // The metadata after rename.
+  .bitdrift.public.unary.workflows.v1.WorkflowMetadata metadata = 3;
+
+  // The chart metadata that applies to this workflow.
+  repeated .bitdrift.public.unary.workflows.v1.PerRuleChartMetadata per_rule_chart_metadata = 4;
+}
+
+message UpsertWorkflowTagsRequest {
+  // The ID of the workflow to update.
+  string workflow_id = 1 [(validate.rules).string = {max_len: 100}];
+
+  // The set of tags to assign to the workflow.
+  repeated string tags = 2 [(validate.rules).repeated = {
+    max_items: 100
+    items: {
+      string: {
+        min_len: 1
+        max_len: 100
+      }
+    }
+  }];
+}
+
+message UpsertWorkflowTagsResponse {
+  // The tags that are assigned to the workflow after the update completes.
+  repeated .bitdrift.public.unary.workflows.v1.Workflow.WorkflowTag tags = 1;
+}
+
+message ListTagsRequest {}
+
+message ListTagsResponse {
+  // The available workflow tags.
+  repeated .bitdrift.public.unary.workflows.v1.Workflow.WorkflowTag tags = 1;
+}
+
+message DeleteWorkflowRequest {
+  // The ID of the workflow to delete.
+  string workflow_id = 2 [(validate.rules).string = {max_len: 100}];
+}
+
+message DeleteWorkflowResponse {
+  message Violation {
+    // User friendly message that explains the violation.
+    string message = 1;
+  }
+
+  // If non-empty, the operation failed. These are violations that need to be resolved before the workflow can be deleted.
+  repeated .bitdrift.public.unary.workflows.v1.DeleteWorkflowResponse.Violation violations = 1;
+}
+
+message DeployWorkflowRequest {
+  // The ID of the workflow to deploy.
+  string workflow_id = 2 [(validate.rules).string = {max_len: 100}];
+}
+
+message DeployWorkflowResponse {
+  // If non-empty, the deploy failed due to the configuration not being
+  // convertible to a valid client workflow.
+  repeated .bitdrift.public.unary.workflows.v1.Violation violations = 1;
+
+  // The mutated workflow after deployment.
+  .bitdrift.public.unary.workflows.v1.Workflow workflow = 2;
+
+  // The metadata after deployment.
+  .bitdrift.public.unary.workflows.v1.WorkflowMetadata metadata = 3;
+
+  // The chart metadata that applies to this workflow.
+  repeated .bitdrift.public.unary.workflows.v1.PerRuleChartMetadata per_rule_chart_metadata = 4;
+}
+
+message StopWorkflowRequest {
+  // The ID of the workflow to update.
+  string workflow_id = 2 [(validate.rules).string = {max_len: 100}];
+}
+
+message StopWorkflowResponse {
+  // The mutated idle workflow.
+  .bitdrift.public.unary.workflows.v1.Workflow workflow = 1;
+
+  // The metadata after stopping.
+  .bitdrift.public.unary.workflows.v1.WorkflowMetadata metadata = 2;
+
+  // The chart metadata that applies to this workflow.
+  repeated .bitdrift.public.unary.workflows.v1.PerRuleChartMetadata per_rule_chart_metadata = 3;
+}
+
+message FavoriteWorkflowRequest {
+  // The ID of the workflow to favorite.
+  string workflow_id = 2 [(validate.rules).string = {max_len: 100}];
+
+  // Will favorite (or unfavorite) the workflow for the current user.
+  bool favorite = 3;
+}
+
+message FavoriteWorkflowResponse {}

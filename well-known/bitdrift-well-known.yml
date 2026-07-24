@@ -1,0 +1,30 @@
+generated: '2026-07-18'
+method: searched
+source: live probes of /.well-known/* on bitdrift hosts
+result: none-found
+hosts:
+- host: https://bitdrift.io
+  documents:
+  - {path: /.well-known/security.txt, status: 404}
+  - {path: /.well-known/openid-configuration, status: 404}
+  - {path: /.well-known/oauth-authorization-server, status: 404}
+  - {path: /.well-known/api-catalog, status: 404}
+  - {path: /.well-known/ai-plugin.json, status: 404}
+- host: https://api-public.bitdrift.io
+  documents:
+  - {path: /.well-known/security.txt, status: 404}
+  - {path: /.well-known/openid-configuration, status: 404}
+  - {path: /.well-known/oauth-authorization-server, status: 404}
+  - {path: /.well-known/api-catalog, status: 404}
+  - {path: /.well-known/ai-plugin.json, status: 404}
+- host: https://docs.bitdrift.io
+  documents:
+  - {path: /.well-known/security.txt, status: 403}
+  - {path: /.well-known/openid-configuration, status: 403}
+  - {path: /.well-known/oauth-authorization-server, status: 403}
+  - {path: /.well-known/api-catalog, status: 403}
+  - {path: /.well-known/ai-plugin.json, status: 403}
+notes: >-
+  No /.well-known/ discovery documents are published. docs.bitdrift.io returns 403 (edge/CDN block)
+  rather than a document. No pointer is wired because no catalog was found; this file records the
+  probe for auditability.

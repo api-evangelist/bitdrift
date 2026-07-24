@@ -1,0 +1,35 @@
+generated: '2026-07-18'
+method: searched
+source: https://docs.bitdrift.io/api-guide/calling-the-api.html
+format: connect-grpc-status
+envelope:
+  description: >-
+    On the gRPC-over-JSON surface, application errors follow the canonical gRPC status model and are
+    mapped to a normal HTTP error response. Clients read the HTTP status code and the JSON response
+    body, which uses the Connect-style error shape with `code` and `message` fields. The same error
+    model is used natively over gRPC and Connect transports.
+  fields:
+    code: Connect-style / gRPC status code string (e.g. invalid_argument, not_found, unauthenticated)
+    message: Human-readable error message
+  example:
+    http_status: 404
+    body:
+      code: not_found
+      message: "session doesn't exists"
+problems:
+- http_status: 400
+  code: invalid_argument
+  title: Invalid argument
+  meaning: The request was syntactically valid JSON but a field value was invalid for the API.
+- http_status: 401
+  code: unauthenticated
+  title: Unauthenticated
+  meaning: Authentication was missing or invalid (missing/invalid x-bitdrift-api-key).
+- http_status: 404
+  code: not_found
+  title: Not found
+  meaning: The requested resource does not exist.
+notes: >-
+  bitdrift documents the three common cases above explicitly; the full surface follows the canonical
+  gRPC status codes (google.rpc.Code) since every transport maps onto the same status model. This
+  catalog captures the documented, stable error contract rather than the complete gRPC code set.

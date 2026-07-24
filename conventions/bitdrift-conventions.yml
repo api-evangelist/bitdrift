@@ -1,0 +1,49 @@
+generated: '2026-07-18'
+method: searched
+source: https://docs.bitdrift.io/api-guide/
+authentication:
+  style: api-key-header
+  header: x-bitdrift-api-key
+  ref: authentication/bitdrift-authentication.yml
+transports:
+  description: >-
+    The same API methods are available over multiple transports. Method paths follow the fully-
+    qualified protobuf service name, e.g. POST /bitdrift.public.unary.workflows.v1.WorkflowService/ListWorkflows.
+  protocols:
+  - grpc
+  - connect
+  - grpc-over-json
+  base_url: https://api-public.bitdrift.io
+  grpc_endpoint: api-public.bitdrift.io:443
+versioning:
+  scheme: package-path
+  description: >-
+    Versioning is expressed in the protobuf package path (e.g. bitdrift.public.unary.workflows.v1).
+    Services are currently at v1; some methods carry explicit version suffixes (e.g. ListIssuesV2).
+  current: v1
+error_envelope:
+  style: connect-grpc-status
+  fields: [code, message]
+  ref: errors/bitdrift-problem-types.yml
+idempotency:
+  supported: false
+  notes: >-
+    No idempotency-key header or parameter is documented for the public API. Mutating operations use
+    Upsert-style methods (UpsertWorkflow-like semantics) rather than a client-supplied idempotency key.
+pagination:
+  documented: partial
+  notes: >-
+    List methods (ListWorkflows, ListIssues, ListDashboards, etc.) return collections; specific
+    cursor/offset parameters are defined per-method in the protobuf request messages rather than a
+    single cross-cutting convention.
+rate_limiting:
+  documented: false
+schema_source:
+  repo: https://github.com/bitdriftlabs/api
+  package_prefix: bitdrift.public
+  license: PolyForm Shield License 1.0.0
+cross_links:
+  authentication: authentication/bitdrift-authentication.yml
+  errors: errors/bitdrift-problem-types.yml
+  lifecycle: lifecycle/bitdrift-lifecycle.yml
+  webhooks: asyncapi/bitdrift-webhooks.yml

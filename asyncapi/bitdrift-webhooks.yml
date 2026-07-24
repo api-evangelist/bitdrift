@@ -1,0 +1,43 @@
+generated: '2026-07-18'
+method: searched
+source: grpc/src/bitdrift/public/webhook/v1/notification.proto
+spec_type: Webhooks
+description: >-
+  bitdrift delivers webhook notifications to external destinations for platform events. The payload
+  is the WebhookNotification message (bitdrift.public.webhook.v1) — a timestamp plus a oneof
+  notification_type. Webhook destinations are managed as connectors (AdminService Upsert/GetConnectors)
+  and captured-session notifications via NotificationsService.
+delivery:
+  envelope: WebhookNotification
+  transport: HTTP POST to a configured connector destination
+  schema: grpc/src/bitdrift/public/webhook/v1/notification.proto
+events:
+- type: test
+  message: TestNotification
+  description: A test notification used to validate delivery.
+- type: session_capture
+  message: SessionCaptureNotification
+  description: A workflow session was captured (includes timeline_url, workflow_url, session_id, workflow_name).
+- type: entity_recording_completed
+  message: EntityRecordingCompletedNotification
+  description: An entity recording request completed (includes entity_id).
+- type: alert
+  message: AlertNotification
+  description: A workflow alert fired (includes alert_name, alert_url, workflow_name).
+- type: issue_alert
+  message: IssueAlertNotification
+  description: An issue alert fired.
+- type: issue_report_notification
+  message: IssueReportNotification
+  description: A new issue report was received.
+- type: issue_notification
+  message: IssueNotification
+  description: A new issue was created.
+management:
+  connectors_api:
+    upsert: AdminService.UpsertConnector
+    list: AdminService.GetConnectors
+    delete: AdminService.DeleteConnector
+  captured_session_notification:
+    upsert: NotificationsService.UpsertCapturedSessionNotification
+    get: NotificationsService.GetCapturedSessionNotification

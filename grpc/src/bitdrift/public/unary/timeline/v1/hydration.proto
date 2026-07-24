@@ -1,0 +1,86 @@
+// api - bitdrift's client/server API definitions
+// Copyright Bitdrift, Inc. All rights reserved.
+//
+// Use of this source code and APIs are governed by a source available license that can be found in
+// the LICENSE file or at:
+// https://polyformproject.org/wp-content/uploads/2020/06/PolyForm-Shield-1.0.0.txt
+syntax = "proto3";
+
+package bitdrift.public.unary.timeline.v1;
+
+import "bitdrift/public/unary/common/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+
+enum HydrationStatus {
+  // Unused. Before any hydration record exists, the API returns NOT_FOUND instead.
+  DRY = 0;
+  // The session is currently being hydrated by an active hydration process.
+  HYDRATING = 1;
+  // The session has been successfully hydrated by a completed hydration process.
+  HYDRATED = 2;
+  // The hydration process has failed.
+  FAILED = 3;
+}
+
+message HydrationState {
+  // The time when the hydration record was created.
+  .google.protobuf.Timestamp created_at = 1;
+
+  // The time when the hydrated session data expires.
+  .google.protobuf.Timestamp expiration_time = 2;
+
+  // The time when hydration started.
+  .google.protobuf.Timestamp started_at = 3;
+
+  // The time when hydration finished.
+  .google.protobuf.Timestamp finished_at = 4;
+
+  // The current hydration status of the session.
+  .bitdrift.public.unary.timeline.v1.HydrationStatus hydration_status = 5;
+
+  // Whether the hydration was performed incrementally.
+  bool incremental = 6;
+}
+
+message HydrateSessionRequest {
+  // The session ID to hydrate.
+  string session_id = 1 [(validate.rules).string = {
+    min_len: 1
+    max_len: 100
+  }];
+
+  // Whether to force hydration even if the session is already hydrated or is currently hydrating.
+  bool force = 2;
+}
+
+message HydrateSessionResponse {
+  // Whether the hydration request is ignored because the session is already hydrated or is currently hydrating.
+  bool ignored = 1;
+
+  // Whether the hydration request is successful. If the session is unknown, this will be set to
+  // false and additional information about the session will be provided in the
+  // session_not_found_info field.
+  bool success = 2;
+
+  // The most recent hydration state for the session. This is useful when the
+  // request is ignored because the session is already hydrated or currently
+  // hydrating.
+  .bitdrift.public.unary.timeline.v1.HydrationState last_hydration_state = 3;
+
+  // If the session ID is unknown, this field will contain additional information about the session.
+  .bitdrift.public.unary.common.v1.SessionStatusInfo session_not_found_info = 4;
+}
+
+message GetHydrationStatusRequest {
+  // The session ID to query for.
+  string session_id = 1 [(validate.rules).string = {
+    min_len: 1
+    max_len: 100
+  }];
+}
+
+message GetHydrationStatusResponse {
+  // The hydration state of the session.
+  .bitdrift.public.unary.timeline.v1.HydrationState status = 1;
+}
