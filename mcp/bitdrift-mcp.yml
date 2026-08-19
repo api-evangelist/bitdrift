@@ -2,16 +2,17 @@ generated: '2026-07-18'
 method: derived
 status: candidate
 source: grpc/src/bitdrift/public (bitdriftlabs/api protobuf services)
-note: >-
-  bitdrift does not publish a hosted MCP server. It DOES publish Agent Skills (github.com/bitdriftlabs/
+note: bitdrift does not publish a hosted MCP server. It DOES publish Agent Skills (github.com/bitdriftlabs/
   bd-skills, captured in skills/) that drive the bd CLI. This is a DERIVED candidate tool list mapping
-  the public protobuf service methods to MCP tools — a starting point, not an official server. Auth
-  would be the x-bitdrift-api-key header against api-public.bitdrift.io.
+  the public protobuf service methods to MCP tools — a starting point, not an official server. Auth would
+  be the x-bitdrift-api-key header against api-public.bitdrift.io.
 server:
   name: bitdrift
   transport: http
   base_url: https://api-public.bitdrift.io
-  auth: {type: apiKey, header: x-bitdrift-api-key}
+  auth:
+    type: apiKey
+    header: x-bitdrift-api-key
 tools:
 - name: list_workflows
   description: List workflows in the account.
@@ -55,3 +56,9 @@ tools:
 - name: create_api_key
   description: Mint an API key.
   source_operation: grpc/src/bitdrift/public/unary/admin/v1/api.proto#AdminService.CreateKey
+deployment:
+  mode: none
+  verified: derived
+  tools: 14
+  checked: '2026-08-12'
+  source: catalog MCP census
