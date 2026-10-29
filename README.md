@@ -64,6 +64,111 @@
 > Full detail: **[Where this data comes from](https://apievangelist.com/about/where-our-data-comes-from)**
 <!-- API-EVANGELIST-PROVENANCE:END -->
 
-bitdrift is a company surfaced as a portfolio company of amplify-partners and added to the API Evangelist network as a stub for enrichment. Sector: developer-tools. This profile is a lead awaiting the enrichment pipeline.
+bitdrift builds Capture, a cost-effective dynamic mobile observability platform for iOS, Android, and React Native. A lightweight on-device SDK stores high-volume telemetry locally and uploads only what is needed under real-time control from the bitdrift control plane, avoiding lengthy mobile release cycles to change what is collected. The platform surfaces Instant Insights dashboards, Workflows for custom metrics, funnels and session-capture rules, a Session Timeline for debugging, Issues & Crashes tracking, and Alerts. It is operated through a web portal and the `bd` CLI, and exposes a public, schema-first protobuf API over gRPC, Connect, and gRPC-over-JSON at api-public.bitdrift.io. bitdrift is a developer-tools company backed by Amplify Partners.
 
-Backed by: amplify-partners — https://bitdrift.io
+**Areas:** Company · Developer Tools · Observability · Mobile · Monitoring · Logging · Crash Reporting · Session Replay · SDK · gRPC · Telemetry
+
+## bitdrift on APIs.io
+
+Everything profiled for bitdrift is published on APIs.io rather than in this repository. Start at the provider page — **[apis.io/providers/bitdrift/](https://apis.io/providers/bitdrift/)** — or go straight to one of the APIs or properties below.
+
+### APIs (1)
+
+- [bitdrift Public API](https://apis.io/apis/bitdrift/bitdrift-public-api/) — The bitdrift Capture public API — schema-first protobuf service definitions exposed over gRPC, Connect, and gRPC-over-JSON at api-public.bitdrift.io.…
+
+### Published properties
+
+Each property below is a page on APIs.io carrying the machine-readable artifact and what it says.
+
+#### AsyncAPI (1)
+
+Event-driven and webhook contracts.
+
+- [Bitdrift Webhooks](https://apis.io/asyncapis/bitdrift/bitdrift-webhooks/)
+
+#### MCP servers (1)
+
+Model Context Protocol servers that expose the API to agents.
+
+- [bitdrift](https://apis.io/servers/bitdrift/bitdrift/)
+
+#### Security (2)
+
+Authentication, trust centre, and vulnerability disclosure.
+
+- [Bitdrift Authentication](https://apis.io/security/bitdrift/bitdrift-authentication/)
+- [Bitdrift Domain Security](https://apis.io/security/bitdrift/bitdrift-domain-security/)
+
+## Where to find this API
+
+Links to the company's own pages. This repository publishes no copy of their specifications — the canonical document is theirs and lives at the URLs below.
+
+- [Website](https://bitdrift.io)
+- [Documentation](https://docs.bitdrift.io/index.html)
+- [Getting started](https://docs.bitdrift.io/quickstart.html)
+- [API reference](https://docs.bitdrift.dev/api/)
+- [Pricing](https://bitdrift.io/pricing)
+- [Sign up](https://bitdrift.io/signup)
+- [Support](https://docs.bitdrift.io/support/contact)
+- [Changelog](https://bitdrift.io/changelog)
+- [Blog](https://blog.bitdrift.io/)
+- [Compliance](https://blog.bitdrift.io/post/soc-2-type-ii)
+- [Terms of service](https://docs.bitdrift.io/support/tos-policy)
+- [Privacy policy](https://docs.bitdrift.io/support/privacy-policy)
+- [GitHub](https://github.com/bitdriftlabs)
+- [Status](https://status.bitdrift.io/)
+
+## API Evangelist rating
+
+**Kin Score 52.8** — developing · rubric 0.25.0 · scored 2026-10-23
+
+| Facet | Score |
+|---|---|
+| Discoverability | 73.2 |
+| Contract quality | 39.0 |
+| Contract governance | 18.2 |
+| Operational transparency | 39.5 |
+| Developer ergonomics | 78.6 |
+| Access clarity | 52.6 |
+
+**Agent readiness 26.3** — agent-aware
+
+| Agent-readiness dimension | Result |
+|---|---|
+| Spec Presence | yes |
+| Agentic Access | — |
+| Reversibility Documented | — |
+| MCP Server | — |
+| Auth Clarity | bearer (partial credit) |
+| Idempotency | — |
+| Error Semantics | documented (partial credit) |
+| OpenAPI Examples | — |
+| Rate Limit Signal | — |
+| Event Surface Described | yes |
+| Agent Skills | yes |
+| Well Known Catalog | — |
+| Consent Identity | — |
+| Agent Card | — |
+| Dry Run Mode | — |
+| Delegated Identity | — |
+| Protected Resource Metadata | — |
+| Dynamic Client Registration | — |
+| Agentic Commerce | — |
+| Pagination Ratio | na |
+| Operation Distinctiveness | na |
+
+**Regulatory alignment 29.4** — Horizontal (data, software, accessibility, platform)
+
+The rubric is published at [github.com/api-evangelist/kin-score](https://github.com/api-evangelist/kin-score). The per-check breakdown behind these numbers — which checks were earned, partial or missed — along with score history and how this provider compares to its peers, is available at [apis.io/providers/bitdrift/](https://apis.io/providers/bitdrift/).
+
+## How this profile is made
+
+API Evangelist profiles a company's public API surface the way a developer would find it: the website, developer portal and documentation, the specifications it publishes, its public repositories, and its pricing, status and changelog pages. From that it derives the properties above — contracts split per API, workflows, schemas, collections, governance rules, plans and rate limits — and scores them against the published [Kin Score rubric](https://github.com/api-evangelist/kin-score).
+
+The artifacts are published on [APIs.io](https://apis.io), not in this repository. This repository is the public record for bitdrift: the place to say something is wrong, missing or out of date, and to ask for a re-score or a removal.
+
+## Open an issue
+
+- **Something about this listing** — a wrong description, a missing API, a stale artifact or a question about the rating: [open an issue on this repository](https://github.com/api-evangelist/bitdrift/issues/new).
+- **A new API, or one that is not in the catalog yet** — [submit it on APIs.io](https://apis.io/add/).
+- **Anything else** — [the APIs.io inbox](https://github.com/api-search/inbox/issues/new) or [info@apievangelist.com](mailto:info@apievangelist.com).
